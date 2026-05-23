@@ -80,8 +80,8 @@ async def logout(auth_token: str = Header(..., description="Токен ауте�
 
 
 @app.get("/users/search")
-async def search_users(auth_token: str = Header(..., description="Токен аутентификации"), username: str = Query(None, description="Поиск по имени"), limit: int = 20, db: AsyncSession = Depends(get_db)):
-    users, status_code, message = await users_search(auth_token, username, limit, db)
+async def search_users(auth_token: str = Header(..., description="Токен аутентификации"), username: str = Query(None, description="Поиск по имени"), limit: int = Query(default=20, ge=1, le=100), offset: int = Query(default=0, ge=0), db: AsyncSession = Depends(get_db)):
+    users, status_code, message = await users_search(auth_token, username, limit, offset, db)
     if status_code != 200:
         return JSONResponse(
             status_code=status_code,

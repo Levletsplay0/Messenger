@@ -83,13 +83,13 @@ async def user_logout(token, db: AsyncSession):
         return None, 401, "Токен устарел или невалиден"
 
 
-async def users_search(token, username, limit, db: AsyncSession):
+async def users_search(token, username, limit, offset, db: AsyncSession):
     user, status_code, message = await get_user_by_token(token=token, db=db)
     if user:
         stmt = select(User)
         if username:
             stmt = stmt.where(User.username.ilike(f"%{username}%"))
-        stmt = stmt.limit(limit)
+        stmt = stmt.limit(limit).offset(offset)
         result = await db.execute(stmt)
         users = result.scalars().all()
         if not users:
