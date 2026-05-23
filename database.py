@@ -82,3 +82,25 @@ async def user_logout(token, db: AsyncSession):
     else:
         return None, 401, "Токен устарел или невалиден"
 
+
+async def users_search(token, username, limit, db: AsyncSession):
+    user, status_code, message = await get_user_by_token(token=token, db=db)
+    if user:
+        stmt = select(User)
+        if username:
+            stmt = stmt.where(User.username.ilike(f"%{username}%"))
+        stmt = stmt.limit(limit)
+        result = await db.execute(stmt)
+        users = result.scalars().all()
+        if not users:
+            return [], 200, "Пользователи не найдены"
+        
+        users_data = [
+            {"id": u.id, "username": u.username, "email": u.email}
+            for u in users
+        ]
+        
+        return users_data, 200, f"Найдено {len(users_data)} пользователей"
+
+    else:
+        return None, 401, "Токен устарел или невалиден"

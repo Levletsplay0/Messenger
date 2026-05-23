@@ -1,10 +1,10 @@
-from fastapi import FastAPI, Depends, Header, Path, Body
+from fastapi import FastAPI, Depends, Header, Path, Body, Query
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from schemas import (UserRegister, UserLogin, TaskCreate, TaskStatusUpdate)
+from schemas import (UserRegister, UserLogin)
 from database import (init_db, get_db, create_user, get_user_by_token, auth_user,
-                      user_logout)
+                      user_logout, users_search)
 
 from contextlib import asynccontextmanager
 
@@ -21,7 +21,7 @@ app = FastAPI(lifespan=lifespan)
 
 @app.get("/")
 async def main():
-    return {"success": True, "message": "This is a future project with task management for users."}
+    return {"success": True, "message": "This is a messenger."}
 
 @app.post("/register")
 async def register(data: UserRegister, db: AsyncSession = Depends(get_db)):
@@ -78,6 +78,21 @@ async def logout(auth_token: str = Header(..., description="Токен ауте�
         "message": message,
     }
 
+
+@app.get("/users/search")
+async def search_users(auth_token: str = Header(..., description="Токен аутентификации"), username: str = Query(None, description="Поиск по имени"), limit: int = 20, db: AsyncSession = Depends(get_db)):
+    users, status_code, message = await users_search(auth_token, username, limit, db)
+    if status_code != 200:
+        return JSONResponse(
+            status_code=status_code,
+            content={"success": False, "message": message}
+        )
+    
+    return {
+        "success": True,
+        "message": message,
+        "data": users,
+    }
 
 
 

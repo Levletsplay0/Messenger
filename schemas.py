@@ -16,9 +16,3 @@ class Task(BaseModel):
     name: str
     project_id: int
 
-
-class TaskStatusUpdate(BaseModel):
-    is_completed: bool
-
-class TaskCreate(BaseModel):
-    name: str
