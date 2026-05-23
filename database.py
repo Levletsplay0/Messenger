@@ -20,7 +20,7 @@ async def get_db():
         yield session
 
 async def init_db():
-    async with async_engine.connect() as conn:
+    async with async_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
 async def create_user(username, password, email, db: AsyncSession):
@@ -72,4 +72,13 @@ async def get_user_by_token(token, db: AsyncSession):
     else:
         return None, 401, "Токен устарел или невалиден"
 
+
+async def user_logout(token, db: AsyncSession):
+    user, status_code, message = await get_user_by_token(token=token, db=db)
+    if user:
+        user.token = None
+        await db.commit()
+        return user, 200, "Вы разлогинены"
+    else:
+        return None, 401, "Токен устарел или невалиден"
 

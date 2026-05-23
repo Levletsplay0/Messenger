@@ -3,7 +3,8 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from schemas import (UserRegister, UserLogin, TaskCreate, TaskStatusUpdate)
-from database import (init_db, get_db, create_user, get_user_by_token, auth_user)
+from database import (init_db, get_db, create_user, get_user_by_token, auth_user,
+                      user_logout)
 
 from contextlib import asynccontextmanager
 
@@ -61,6 +62,20 @@ async def get_user(auth_token: str = Header(..., description="Токен аут�
             "username": user.username,
             "email": user.email
         }
+    }
+
+@app.post("/logout")
+async def logout(auth_token: str = Header(..., description="Токен аутентификации"), db: AsyncSession = Depends(get_db)):
+    user, status_code, message = await user_logout(auth_token, db)
+    if status_code != 200:
+        return JSONResponse(
+            status_code=status_code,
+            content={"success": False, "message": message}
+        )
+    
+    return {
+        "success": True,
+        "message": message,
     }
 
 
