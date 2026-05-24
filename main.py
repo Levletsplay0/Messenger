@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from schemas import (UserRegister, UserLogin)
 from database import (init_db, get_db, create_user, get_user_by_token, auth_user,
-                      user_logout, users_search)
+                      user_logout, users_search, create_group, add_participants_to_group)
 
 from contextlib import asynccontextmanager
 
@@ -94,6 +94,40 @@ async def search_users(auth_token: str = Header(..., description="Токен а�
         "data": users,
     }
 
+@app.post("/groups")
+async def new_group(auth_token: str = Header(..., description="Токен аутентификации"), name: str = Body(..., description="Название группы"), db: AsyncSession = Depends(get_db)):
+    new_group, status_code, message = await create_group(auth_token, name, db)
+    if status_code != 200 and status_code != 201:
+        return JSONResponse(
+            status_code=status_code,
+            content={"success": False, "message": message}
+        )
+    
+    return {
+        "success": True,
+        "message": message,
+        "data": new_group,
+    }
 
 
+@app.post("/groups/{group_id}/members")
+async def add_group_members(group_id: int = Path(..., ge=1, description="ID группы"), auth_token: str = Header(..., description="Токен аутентификации"), user_ids: list[int] = Body(..., embed=True, min_length=1, max_length=50, description="Список ID пользователей"), db: AsyncSession = Depends(get_db)):
+    result, status_code, message = await add_participants_to_group(
+        group_id=group_id,
+        user_ids=user_ids,
+        token=auth_token,
+        db=db
+    )
+    
+    if status_code != 200 and status_code != 201:
+        return JSONResponse(
+            status_code=status_code,
+            content={"success": False, "message": message}
+        )
+        
+    return {
+        "success": True,
+        "message": message,
+        "data": result
+    }
 

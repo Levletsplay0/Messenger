@@ -1,5 +1,7 @@
-from sqlalchemy import Column, String, Integer, ForeignKey, DateTime, func
+from sqlalchemy import Column, String, Integer, ForeignKey, DateTime, func, DateTime, UniqueConstraint
 from sqlalchemy.orm import declarative_base, relationship
+from datetime import datetime
+
 
 Base = declarative_base()
 
@@ -14,6 +16,7 @@ class User(Base):
 
     created_groups = relationship("Group", back_populates="creator", cascade="all, delete-orphan")
     messages = relationship("Message", back_populates="author", cascade="all, delete-orphan")
+    group_memberships = relationship("GroupMember", back_populates="user")
 
 
 class Group(Base):
@@ -25,7 +28,23 @@ class Group(Base):
 
     creator = relationship("User", back_populates="created_groups")
     messages = relationship("Message", back_populates="group", cascade="all, delete-orphan")
+    members = relationship("GroupMember", back_populates="group", cascade="all, delete-orphan")
 
+
+
+class GroupMember(Base):
+    __tablename__ = "group_members"
+    
+    id = Column(Integer, primary_key=True)
+    group_id = Column(Integer, ForeignKey("groups.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    role = Column(String(20), default="member")
+    joined_at = Column(DateTime, default=datetime.utcnow)
+    
+    __table_args__ = (UniqueConstraint("group_id", "user_id", name="uq_group_member"),)
+    
+    group = relationship("Group", back_populates="members")
+    user = relationship("User", back_populates="group_memberships")
 
 class Message(Base):
     __tablename__ = "messages"
