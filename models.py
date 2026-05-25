@@ -1,4 +1,5 @@
-from sqlalchemy import Column, String, Integer, ForeignKey, DateTime, func, DateTime, UniqueConstraint
+from sqlalchemy import (Column, String, Integer, ForeignKey, DateTime,
+                        func, DateTime, UniqueConstraint, Text)
 from sqlalchemy.orm import declarative_base, relationship
 from datetime import datetime
 
@@ -52,7 +53,7 @@ class Message(Base):
     id = Column(Integer, primary_key=True)
     group_id = Column(Integer, ForeignKey("groups.id", ondelete="CASCADE"), nullable=False)
     author_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    text = Column(String, nullable=False)
+    content = Column(Text, nullable=False)
     sent_at = Column(DateTime, server_default=func.now(), nullable=False)
 
     group = relationship("Group", back_populates="messages")

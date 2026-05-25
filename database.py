@@ -5,6 +5,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import secrets
 from sqlalchemy.orm import selectinload
 import os
+from datetime import datetime
 
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://myuser:mypass@localhost:5432/mydb")
 
@@ -181,3 +182,47 @@ async def add_participants_to_group(token, group_id, user_ids, db: AsyncSession)
         "added_count": len(new_ids),
         "added_user_ids": new_ids
     }, 201, f"Добавлено {len(new_ids)} участников"
+
+
+async def send_message(token, content, group_id, db: AsyncSession):
+    author, status_code, message = await get_user_by_token(token=token, db=db)
+    if not author:
+        return None, status_code, message
+    
+    result = await db.execute(select(Group).where(Group.id == group_id))
+    group = result.scalar_one_or_none()
+    if not group:
+        return None, 404, "Группа не найдена"
+    
+    member_stmt = select(GroupMember).where(
+        GroupMember.group_id == group_id,
+        GroupMember.user_id == author.id
+    )
+    member_res = await db.execute(member_stmt)
+    if not member_res.scalar_one_or_none():
+        return None, 403, "Только участники группы могут отправлять сообщения"
+    
+    if not content or not content.strip():
+        return None, 400, "Сообщение не может быть пустым"
+    
+    if len(content) > 5000:
+        return None, 400, "Сообщение слишком длинное (макс. 5000 символов)"
+    
+    new_message = Message(
+        content=content.strip(),
+        author_id=author.id,
+        group_id=group_id,
+    )
+
+    db.add(new_message)
+    await db.commit()
+    await db.refresh(new_message)
+
+    return {
+        "id": new_message.id,
+        "content": new_message.content,
+        "sender_id": new_message.author_id,
+        "sender_username": author.username,
+        "group_id": new_message.group_id,
+        "sent_at": new_message.sent_at.isoformat() if new_message.sent_at else None
+    }, 201, "Сообщение отправлено"

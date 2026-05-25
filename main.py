@@ -4,7 +4,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from schemas import (UserRegister, UserLogin)
 from database import (init_db, get_db, create_user, get_user_by_token, auth_user,
-                      user_logout, users_search, create_group, add_participants_to_group)
+                      user_logout, users_search, create_group, add_participants_to_group,
+                      send_message)
 
 from contextlib import asynccontextmanager
 
@@ -21,7 +22,7 @@ app = FastAPI(lifespan=lifespan)
 
 @app.get("/")
 async def main():
-    return {"success": True, "message": "This is a messenger."}
+    return {"success": True, "message": "Прекрасно, бекенд работает!"}
 
 @app.post("/register")
 async def register(data: UserRegister, db: AsyncSession = Depends(get_db)):
@@ -31,8 +32,15 @@ async def register(data: UserRegister, db: AsyncSession = Depends(get_db)):
             status_code=status_code,
             content={"success": False, "message": message}
         )
-    return {"success": True, "message": message, "data": {"id": result.id, "username": result.username}}
-
+    
+    return JSONResponse (
+        status_code=status_code,
+        content={
+            "success": True,
+            "message": message,
+            "data": {"id": result.id, "username": result.username}
+        }
+    )
 @app.post("/login")
 async def login(data: UserLogin, db: AsyncSession = Depends(get_db)):
     result, status_code, message = await auth_user(data.username, data.password, db)
@@ -42,8 +50,14 @@ async def login(data: UserLogin, db: AsyncSession = Depends(get_db)):
             content={"success": False, "message": message}
         )
     
-    return {"success": True, "message": message, "data": {"access_token": result}}
-
+    return JSONResponse (
+        status_code=status_code,
+        content={
+            "success": True,
+            "message": message,
+            "data": {"access_token": result}
+        }
+    )
     
 @app.get("/users/me")
 async def get_user(auth_token: str = Header(..., description="Токен аутентификации"), db: AsyncSession = Depends(get_db)):
@@ -54,15 +68,19 @@ async def get_user(auth_token: str = Header(..., description="Токен аут�
             content={"success": False, "message": message}
         )
     
-    return {
-        "success": True,
-        "message": message,
-        "data": {
-            "id": user.id,
-            "username": user.username,
-            "email": user.email
+
+    return JSONResponse (
+        status_code=status_code,
+        content={
+            "success": True,
+            "message": message,
+            "data": {
+                "id": user.id,
+                "username": user.username,
+                "email": user.email
+            }
         }
-    }
+    )
 
 @app.post("/logout")
 async def logout(auth_token: str = Header(..., description="Токен аутентификации"), db: AsyncSession = Depends(get_db)):
@@ -73,10 +91,13 @@ async def logout(auth_token: str = Header(..., description="Токен ауте�
             content={"success": False, "message": message}
         )
     
-    return {
-        "success": True,
-        "message": message,
-    }
+    return JSONResponse (
+        status_code=status_code,
+        content={
+            "success": True,
+            "message": message,
+        }
+    )
 
 
 @app.get("/users/search")
@@ -88,11 +109,15 @@ async def search_users(auth_token: str = Header(..., description="Токен а�
             content={"success": False, "message": message}
         )
     
-    return {
-        "success": True,
-        "message": message,
-        "data": users,
-    }
+
+    return JSONResponse (
+        status_code=status_code,
+        content={
+            "success": True,
+            "message": message,
+            "data": users,
+        }
+    )
 
 @app.post("/groups")
 async def new_group(auth_token: str = Header(..., description="Токен аутентификации"), name: str = Body(..., description="Название группы"), db: AsyncSession = Depends(get_db)):
@@ -103,11 +128,14 @@ async def new_group(auth_token: str = Header(..., description="Токен аут
             content={"success": False, "message": message}
         )
     
-    return {
-        "success": True,
-        "message": message,
-        "data": new_group,
-    }
+    return JSONResponse (
+        status_code=status_code,
+        content={
+            "success": True,
+            "message": message,
+            "data": new_group,
+        }
+    )
 
 
 @app.post("/groups/{group_id}/members")
@@ -125,9 +153,38 @@ async def add_group_members(group_id: int = Path(..., ge=1, description="ID гр
             content={"success": False, "message": message}
         )
         
-    return {
-        "success": True,
-        "message": message,
-        "data": result
-    }
+    return JSONResponse (
+        status_code=status_code,
+        content={
+            "success": True,
+            "message": message,
+            "data": result
+        }
+    )
 
+
+@app.post("/groups/{group_id}/messages")
+async def send_message_to_group(group_id: int = Path(..., ge=1, description="ID группы"), auth_token: str = Header(..., description="Токен аутентификации"), content: str = Body(..., description="Контент сообщения"), db: AsyncSession = Depends(get_db)):
+    result, status_code, message = await send_message(
+        token=auth_token,
+        content=content,
+        group_id=group_id,
+        db=db
+    )
+    
+    if status_code != 200 and status_code != 201:
+        return JSONResponse(
+            status_code=status_code,
+            content={"success": False, "message": message}
+        )
+        
+    return JSONResponse (
+        status_code=status_code,
+        content={
+            "success": True,
+            "message": message,
+            "data": result
+        }
+    )
+
+    
