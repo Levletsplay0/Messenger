@@ -120,7 +120,7 @@ async def search_users(auth_token: str = Header(..., description="Токен а�
     )
 
 @app.post("/groups")
-async def new_group(auth_token: str = Header(..., description="Токен аутентификации"), name: str = Body(..., description="Название группы"), db: AsyncSession = Depends(get_db)):
+async def new_group(auth_token: str = Header(..., description="Токен аутентификации"), name: str = Body(..., embed=True, description="Название группы"), db: AsyncSession = Depends(get_db)):
     new_group, status_code, message = await create_group(auth_token, name, db)
     if status_code != 200 and status_code != 201:
         return JSONResponse(
@@ -164,7 +164,7 @@ async def add_group_members(group_id: int = Path(..., ge=1, description="ID гр
 
 
 @app.post("/groups/{group_id}/messages")
-async def send_message_to_group(group_id: int = Path(..., ge=1, description="ID группы"), auth_token: str = Header(..., description="Токен аутентификации"), content: str = Body(..., description="Контент сообщения"), db: AsyncSession = Depends(get_db)):
+async def send_message_to_group(group_id: int = Path(..., ge=1, description="ID группы"), auth_token: str = Header(..., description="Токен аутентификации"), content: str = Body(..., embed=True, description="Контент сообщения"), db: AsyncSession = Depends(get_db)):
     result, status_code, message = await send_message(
         token=auth_token,
         content=content,
