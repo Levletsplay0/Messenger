@@ -226,3 +226,50 @@ async def send_message(token, content, group_id, db: AsyncSession):
         "group_id": new_message.group_id,
         "sent_at": new_message.sent_at.isoformat() if new_message.sent_at else None
     }, 201, "Сообщение отправлено"
+
+
+async def get_group_messages(token, group_id, limit, offset, db: AsyncSession):
+    user, status_code, message = await get_user_by_token(token=token, db=db)
+    if not user:
+        return [], status_code, message
+    
+    result = await db.execute(select(Group).where(Group.id == group_id))
+    group = result.scalar_one_or_none()
+    if not group:
+        return [], 404, "Группа не найдена"
+    
+
+    member_res = await db.execute(select(GroupMember).where(GroupMember.group_id == group_id, GroupMember.user_id == user.id))
+    if not member_res.scalar_one_or_none():
+        return [], 403, "Только участники группы могут отправлять сообщения"
+    
+    
+    
+    msg_stmt = (
+        select(Message)
+        .options(selectinload(Message.author))
+        .where(Message.group_id == group_id)
+        .order_by(Message.sent_at.asc()) #можно ещё .desc() чтобы было от новых к старым
+        .limit(limit)
+        .offset(offset)
+    )
+
+    result = await db.execute(msg_stmt)
+    messages = result.scalars().all()
+
+    if not messages:
+        return [], 200, "Сообщений нет"
+
+    data = [
+        {
+            "id": m.id,
+            "content": m.content,
+            "author_id": m.author_id,
+            "author_username": m.author.username,
+            "group_id": m.group_id,
+            "sent_at": m.sent_at.isoformat() if m.sent_at else None
+        }
+        for m in messages
+    ]
+
+    return data, 200, f"Загружено {len(data)} сообщений"

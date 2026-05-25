@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from schemas import (UserRegister, UserLogin)
 from database import (init_db, get_db, create_user, get_user_by_token, auth_user,
                       user_logout, users_search, create_group, add_participants_to_group,
-                      send_message)
+                      send_message, get_group_messages)
 
 from contextlib import asynccontextmanager
 
@@ -187,4 +187,27 @@ async def send_message_to_group(group_id: int = Path(..., ge=1, description="ID 
         }
     )
 
+@app.get("/groups/{group_id}/messages")
+async def get_messages_group(group_id: int = Path(..., ge=1, description="ID группы"), auth_token: str = Header(..., description="Токен аутентификации"), limit: int = Query(default=20, ge=1, le=100, description="Кол-во сообщений"), offset: int = Query(default=0, ge=0, description="Смещение"), db: AsyncSession = Depends(get_db)):
+    result, status_code, message = await get_group_messages(
+        token=auth_token,
+        group_id=group_id,
+        limit=limit,
+        offset=offset,
+        db=db
+    )
     
+    if status_code != 200 and status_code != 201:
+        return JSONResponse(
+            status_code=status_code,
+            content={"success": False, "message": message}
+        )
+        
+    return JSONResponse (
+        status_code=status_code,
+        content={
+            "success": True,
+            "message": message,
+            "data": result
+        }
+    )
