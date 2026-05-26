@@ -112,7 +112,7 @@ async def users_search(token, username, limit, offset, db: AsyncSession):
         return users_data, 200, f"Найдено {len(users_data)} пользователей"
 
     else:
-        return None, 401, "Токен устарел или невалиден"
+        return None, status_code, message
 
 
 async def create_group(token, name, db: AsyncSession):
@@ -292,3 +292,31 @@ async def get_group_messages(token, group_id, limit, offset, db: AsyncSession):
     ]
 
     return data, 200, f"Загружено {len(data)} сообщений"
+
+async def get_user_groups(token, db: AsyncSession):
+    user, status_code, message = await get_user_by_token(token=token, db=db)
+    if not user:
+        return [], status_code, message
+
+    stmt = (
+        select(Group, GroupMember.role)
+        .join(GroupMember, Group.id == GroupMember.group_id)
+        .where(GroupMember.user_id == user.id)
+        .order_by(GroupMember.joined_at.desc())
+    )
+    result = await db.execute(stmt)
+    rows = result.all() 
+    if not rows:
+        return [], 200, "У вас пока нет групп"
+    
+    data = [
+        {
+            "id": group.id,
+            "name": group.name,
+            "creator_id": group.creator_id,
+            "my_role": role
+        }
+        for group, role in rows
+    ]
+
+    return data, 200, f"Загружено {len(data)} чатов"
