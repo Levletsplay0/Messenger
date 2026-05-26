@@ -25,15 +25,19 @@ async def init_db():
         await conn.run_sync(Base.metadata.create_all)
 
 async def create_user(username, password, email, db: AsyncSession):
-    existing = await get_user_by_name(username, db)
-    if existing:
-        return None, 409, f"Пользователь '{username}' уже существует"
+    existing_username = await get_user_by_name(username, db)
+    if existing_username:
+        return None, 409, f"Пользователь с никнеймом: {username} уже существует"
+    
+    existing_email = await get_user_by_email(email, db)
+    if existing_email:
+        return None, 409, f"Пользователь с почтой: {email} уже существует"
     
     hashed_password = generate_password_hash(password)
     user = User(username=username, password=hashed_password, email=email)
     db.add(user)
     await db.commit()
-    return user, 200, "Пользователь успешно создан"
+    return user, 201, "Пользователь успешно создан"
 
 
 async def auth_user(username, password, db: AsyncSession):
@@ -54,6 +58,10 @@ async def get_user_by_name(username, db: AsyncSession):
     result = await db.execute(select(User).where(User.username == username))
     return result.scalar_one_or_none()
     
+async def get_user_by_email(email, db: AsyncSession):
+    result = await db.execute(select(User).where(User.email == email))
+    return result.scalar_one_or_none()
+
 async def password_check(user: User, password):
     if not user:
         return False
@@ -81,7 +89,7 @@ async def user_logout(token, db: AsyncSession):
         await db.commit()
         return user, 200, "Вы разлогинены"
     else:
-        return None, 401, "Токен устарел или невалиден"
+        return None, status_code, message
 
 
 async def users_search(token, username, limit, offset, db: AsyncSession):
@@ -118,8 +126,19 @@ async def create_group(token, name, db: AsyncSession):
     )
 
     db.add(new_group)
+
+    await db.flush()
+
+    creator_member = GroupMember(
+        group_id=new_group.id,
+        user_id=creator.id,
+        role="admin"
+    )
+    db.add(creator_member)
+
     await db.commit()
     await db.refresh(new_group)
+
     
     return {
         "id": new_group.id,

@@ -40,7 +40,7 @@ class GroupMember(Base):
     group_id = Column(Integer, ForeignKey("groups.id", ondelete="CASCADE"), nullable=False)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     role = Column(String(20), default="member")
-    joined_at = Column(DateTime, default=datetime.utcnow)
+    joined_at = Column(DateTime, server_default=func.now())
     
     __table_args__ = (UniqueConstraint("group_id", "user_id", name="uq_group_member"),)
     
