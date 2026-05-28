@@ -25,7 +25,7 @@ cd Messenger
 
 ## 2. Создание виртуального окружения и установка зависимостей
 
-``` bash
+```bash
 python -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
@@ -33,20 +33,20 @@ pip install -r requirements.txt
 
 ## 3. Запуск
 
-``` bash
+```bash
 uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
-Документация будет доступна по адресу: http://localhost/docs
+Документация будет доступна по адресу: http://127.0.0.1:8000/docs
 
 # Примеры запросов
 ## Регистрация пользователя
-``` bash
+```bash
 curl -X POST http://localhost:8000/register \
   -H "Content-Type: application/json" \
   -d '{"username": "alice", "password": "secure123", "email": "alice@example.com"}'
 ```
 ## Ответ
-``` json
+```json
 {
   "success": true,
   "message": "Пользователь успешно создан",
@@ -58,14 +58,14 @@ curl -X POST http://localhost:8000/register \
 ```
 
 ## Вход в систему
-``` bash
+```bash
 curl -X POST http://localhost:8000/login \
   -H "Content-Type: application/json" \
   -d '{"username": "alice", "password": "secure123"}'
 ```
 
 ## Ответ
-``` json
+```json
 {
   "success": true,
   "message": "Успешный вход",
@@ -75,13 +75,30 @@ curl -X POST http://localhost:8000/login \
 }
 ```
 
+## Информация о себе
+```bash
+curl -X POST http://localhost:8000/users/me \
+  -H "auth-token: a1b2c3d4e5f6..." \
+```
+
+## Ответ
+```json
+{
+  "success": true,
+  "message": "Успешный вход",
+  "data": {
+    "access_token": "a1b2c3d4e5f6..."
+  }
+}
+```
 # План развития
 
-**1) Добавление аватарок + работа с файломи в бэке**
+**1) Добавление аватарок пользователям и группам + работа с файлами в бэке**
 
 **2) Управление группами (Название, аватары, описание и тд)**
 
 **3) Web Socket и real time**
 
 
-> Автор: @Levletsplay0  
+> Автор: [@Levletsplay0 ](https://github.com/Levletsplay0)  
+**Поставьте звезду, если проект помог!**
