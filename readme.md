@@ -77,7 +77,7 @@ curl -X POST http://localhost:8000/login \
 
 ## Информация о себе
 ```bash
-curl -X POST http://localhost:8000/users/me \
+curl -X GET http://localhost:8000/users/me \
   -H "auth-token: a1b2c3d4e5f6..." \
 ```
 
@@ -85,9 +85,10 @@ curl -X POST http://localhost:8000/users/me \
 ```json
 {
   "success": true,
-  "message": "Успешный вход",
   "data": {
-    "access_token": "a1b2c3d4e5f6..."
+    "id": 1,
+    "username": "alice",
+    "email": "alice@example.com"
   }
 }
 ```
