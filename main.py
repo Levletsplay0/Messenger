@@ -1,13 +1,15 @@
-from fastapi import FastAPI, Depends, Header, Path, Body, Query
+from fastapi import FastAPI, Depends, Header, Path, Body, Query, UploadFile, File
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from schemas import (UserRegister, UserLogin)
 from database import (init_db, get_db, create_user, get_user_by_token, auth_user,
                       user_logout, users_search, create_group, add_participants_to_group,
-                      send_message, get_group_messages, get_user_groups)
+                      send_message, get_group_messages, get_user_groups, upload_user_avatar,
+                      remove_user_avatar)
 
 from contextlib import asynccontextmanager
+from fastapi.staticfiles import StaticFiles
 
 
 
@@ -77,7 +79,8 @@ async def get_user(auth_token: str = Header(..., description="Токен аут�
             "data": {
                 "id": user.id,
                 "username": user.username,
-                "email": user.email
+                "email": user.email,
+                "avatar_path": user.avatar_path
             }
         }
     )
@@ -233,3 +236,43 @@ async def get_groups(auth_token: str = Header(..., description="Токен ау�
             "data": result
         }
     )
+
+@app.post("/users/me/avatar")
+async def set_avatar(auth_token: str = Header(..., description="Токен аутентификации"), file: UploadFile = File(..., description="Файл аватарки (png, jpg, jpeg, webp)"), db: AsyncSession = Depends(get_db)):
+    result, status_code, message = await upload_user_avatar(auth_token, file, db)
+    
+    if status_code != 200 and status_code != 201:
+        return JSONResponse(
+            status_code=status_code,
+            content={"success": False, "message": message}
+        )
+
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "success": True,
+            "message": message,
+            "data": {"avatar_path": result}
+        }
+    )
+
+@app.delete("/users/me/avatar")
+async def delete_avatar(auth_token: str = Header(..., description="Токен аутентификации"), db: AsyncSession = Depends(get_db)):
+    result, status_code, message = await remove_user_avatar(auth_token, db)
+    
+    if status_code != 200 and status_code != 201:
+        return JSONResponse(
+            status_code=status_code,
+            content={"success": False, "message": message}
+        )
+
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "success": True,
+            "message": message,
+            "data": {"is_deleted": result}
+        }
+    )
+
+app.mount("/static", StaticFiles(directory="static"), name="static")

@@ -14,6 +14,7 @@ class User(Base):
     password = Column(String, nullable=False)
     email = Column(String, unique=True, nullable=False)
     token = Column(String, nullable=True, unique=True)
+    avatar_path = Column(String, nullable=True)
 
     created_groups = relationship("Group", back_populates="creator", cascade="all, delete-orphan")
     messages = relationship("Message", back_populates="author", cascade="all, delete-orphan")

@@ -5,7 +5,9 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import secrets
 from sqlalchemy.orm import selectinload
 import os
-from datetime import datetime
+from pathlib import Path
+from fastapi import UploadFile
+import uuid
 
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://myuser:mypass@localhost:5432/mydb")
 
@@ -320,3 +322,55 @@ async def get_user_groups(token, db: AsyncSession):
     ]
 
     return data, 200, f"Загружено {len(data)} чатов"
+
+
+def _is_allowed_file(filename: str):
+    ALLOWED_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
+    return Path(filename).suffix.lower() in ALLOWED_EXTENSIONS
+
+async def upload_user_avatar(token: str, file: UploadFile, db: AsyncSession):
+    user, status_code, message = await get_user_by_token(token=token, db=db)
+    if not user:
+        return None, status_code, message
+
+    if not file.filename:
+        return None, 400, "Файл не указан"
+    
+    if not _is_allowed_file(file.filename):
+        ALLOWED_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
+        return None, 400, f"Разрешены только: {', '.join(ALLOWED_EXTENSIONS)}"
+    
+    MAX_FILE_SIZE = 5 * 1024 * 1024
+    contents = await file.read()
+    if len(contents) > MAX_FILE_SIZE:
+        return None, 413, f"Размер файла не должен превышать {MAX_FILE_SIZE // 1024 // 1024} МБ"
+
+
+    ext = Path(file.filename).suffix.lower()
+    unique_filename = f"{user.id}_{uuid.uuid4().hex}{ext}"
+
+    AVATARS_DIR = Path("static/avatars")
+    AVATARS_DIR.mkdir(parents=True, exist_ok=True)
+    file_path = AVATARS_DIR / unique_filename
+
+    with open(file_path, "wb") as f:
+        f.write(contents)
+
+    user.avatar_path = str(file_path)
+    await db.commit()
+
+    return str(file_path), 200, "Аватарка успешно обновлена"
+
+
+async def remove_user_avatar(token: str, db: AsyncSession):    
+    user, status_code, message = await get_user_by_token(token, db)
+    if not user:
+        return None, status_code, message
+
+    if user.avatar_path and os.path.exists(user.avatar_path):
+        os.remove(user.avatar_path)
+    
+    user.avatar_path = None
+    await db.commit()
+
+    return True, 200, "Аватарка успешно удалена"
