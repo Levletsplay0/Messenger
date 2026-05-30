@@ -315,6 +315,7 @@ async def get_user_groups(token, db: AsyncSession):
         {
             "id": group.id,
             "name": group.name,
+            "avatar_path": group.avatar_path,
             "creator_id": group.creator_id,
             "my_role": role
         }
@@ -332,7 +333,7 @@ async def upload_user_avatar(token: str, file: UploadFile, db: AsyncSession):
     if user.avatar_path:
         path = Path(user.avatar_path)
         if path.exists() and path.is_file():
-            os.remove(user.avatar_path)
+            path.unlink()
 
     if not file.filename:
         return None, 400, "Файл не указан"
@@ -350,7 +351,7 @@ async def upload_user_avatar(token: str, file: UploadFile, db: AsyncSession):
     ext = Path(file.filename).suffix.lower()
     unique_filename = f"{user.id}_{uuid.uuid4().hex}{ext}"
 
-    AVATARS_DIR = Path("static/avatars")
+    AVATARS_DIR = Path("static/avatars/users")
     AVATARS_DIR.mkdir(parents=True, exist_ok=True)
     file_path = AVATARS_DIR / unique_filename
 
@@ -371,9 +372,86 @@ async def remove_user_avatar(token: str, db: AsyncSession):
     if user.avatar_path:
         path = Path(user.avatar_path)
         if path.exists() and path.is_file():
-            os.remove(user.avatar_path)
+            path.unlink()
     
     user.avatar_path = None
     await db.commit()
 
     return True, 200, "Аватарка успешно удалена"
+
+
+async def upload_group_avatar(token: str, group_id: int, file: UploadFile, db: AsyncSession):
+    user, status_code, message = await get_user_by_token(token=token, db=db)
+    if not user:
+        return None, status_code, message
+    
+    member_res = await db.execute(select(GroupMember).where(GroupMember.group_id == group_id, GroupMember.user_id == user.id))
+    if not member_res.scalar_one_or_none():
+        return None, 403, "Только участники группы могут добавлять аватар"
+    
+    result = await db.execute(select(Group).where(Group.id == group_id))
+    group = result.scalar_one_or_none()
+
+    if not group:
+        return None, 404, "Такой группы не существует"
+    
+    if group.avatar_path:
+        path = Path(group.avatar_path)
+        if path.exists() and path.is_file():
+            path.unlink()
+
+
+    if not file.filename:
+        return None, 400, "Файл не указан"
+    
+    ALLOWED_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
+    if not Path(file.filename).suffix.lower() in ALLOWED_EXTENSIONS:
+        return None, 400, f"Разрешены только: {', '.join(ALLOWED_EXTENSIONS)}"
+    
+    MAX_FILE_SIZE = 5 * 1024 * 1024
+    contents = await file.read()
+    if len(contents) > MAX_FILE_SIZE:
+        return None, 413, f"Размер файла не должен превышать {MAX_FILE_SIZE // 1024 // 1024} МБ"
+
+
+    ext = Path(file.filename).suffix.lower()
+    unique_filename = f"{group_id}_{uuid.uuid4().hex}{ext}"
+
+    AVATARS_DIR = Path("static/avatars/groups")
+    AVATARS_DIR.mkdir(parents=True, exist_ok=True)
+    file_path = AVATARS_DIR / unique_filename
+
+    with open(file_path, "wb") as f:
+        f.write(contents)
+
+    
+    group.avatar_path = str(file_path)
+    await db.commit()
+
+    return str(file_path), 200, "Аватарка группы успешно обновлена"
+
+
+async def remove_group_avatar(token: str, group_id: int, db: AsyncSession):    
+    user, status_code, message = await get_user_by_token(token, db)
+    if not user:
+        return None, status_code, message
+
+    member_res = await db.execute(select(GroupMember).where(GroupMember.group_id == group_id, GroupMember.user_id == user.id))
+    if not member_res.scalar_one_or_none():
+        return None, 403, "Только участники группы могут добавлять аватар"
+    
+    result = await db.execute(select(Group).where(Group.id == group_id))
+    group = result.scalar_one_or_none()
+
+    if not group:
+        return None, 404, "Такой группы не существует"
+    
+    if group.avatar_path:
+        path = Path(group.avatar_path)
+        if path.exists() and path.is_file():
+            path.unlink()
+    
+    group.avatar_path = None
+    await db.commit()
+
+    return True, 200, "Аватарка группы успешно удалена"
