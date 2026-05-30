@@ -324,20 +324,21 @@ async def get_user_groups(token, db: AsyncSession):
     return data, 200, f"Загружено {len(data)} чатов"
 
 
-def _is_allowed_file(filename: str):
-    ALLOWED_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
-    return Path(filename).suffix.lower() in ALLOWED_EXTENSIONS
-
 async def upload_user_avatar(token: str, file: UploadFile, db: AsyncSession):
     user, status_code, message = await get_user_by_token(token=token, db=db)
     if not user:
         return None, status_code, message
+    
+    if user.avatar_path:
+        path = Path(user.avatar_path)
+        if path.exists() and path.is_file():
+            os.remove(user.avatar_path)
 
     if not file.filename:
         return None, 400, "Файл не указан"
     
-    if not _is_allowed_file(file.filename):
-        ALLOWED_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
+    ALLOWED_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
+    if not Path(file.filename).suffix.lower() in ALLOWED_EXTENSIONS:
         return None, 400, f"Разрешены только: {', '.join(ALLOWED_EXTENSIONS)}"
     
     MAX_FILE_SIZE = 5 * 1024 * 1024
@@ -367,8 +368,10 @@ async def remove_user_avatar(token: str, db: AsyncSession):
     if not user:
         return None, status_code, message
 
-    if user.avatar_path and os.path.exists(user.avatar_path):
-        os.remove(user.avatar_path)
+    if user.avatar_path:
+        path = Path(user.avatar_path)
+        if path.exists() and path.is_file():
+            os.remove(user.avatar_path)
     
     user.avatar_path = None
     await db.commit()
