@@ -6,7 +6,8 @@ from schemas import (UserRegister, UserLogin)
 from database import (init_db, get_db, create_user, get_user_by_token, auth_user,
                       user_logout, users_search, create_group, add_participants_to_group,
                       send_message, get_group_messages, get_user_groups, upload_user_avatar,
-                      remove_user_avatar, upload_group_avatar, remove_group_avatar)
+                      remove_user_avatar, upload_group_avatar, remove_group_avatar,
+                      update_description_group)
 
 from contextlib import asynccontextmanager
 from fastapi.staticfiles import StaticFiles
@@ -295,7 +296,7 @@ async def set_group_avatar(auth_token: str = Header(..., description="Токен
     )
 
 @app.delete("/groups/{group_id}/avatar")
-async def delete_avatar(auth_token: str = Header(..., description="Токен аутентификации"), group_id: int = Path(..., description="id группы"), db: AsyncSession = Depends(get_db)):
+async def delete_group_avatar(auth_token: str = Header(..., description="Токен аутентификации"), group_id: int = Path(..., description="id группы"), db: AsyncSession = Depends(get_db)):
     result, status_code, message = await remove_group_avatar(auth_token, group_id, db)
     
     if status_code != 200 and status_code != 201:
@@ -310,5 +311,25 @@ async def delete_avatar(auth_token: str = Header(..., description="Токен а
             "success": True,
             "message": message,
             "data": {"is_deleted": result}
+        }
+    )
+
+
+@app.patch("/groups/{group_id}/description")
+async def update_group_description(auth_token: str = Header(..., description="Токен аутентификации"), group_id: int = Path(..., description="id группы"), description: str = Body(..., description="Описание группы", embed=True), db: AsyncSession = Depends(get_db)):
+    result, status_code, message = await update_description_group(auth_token, group_id, description, db)
+    
+    if status_code != 200 and status_code != 201:
+        return JSONResponse(
+            status_code=status_code,
+            content={"success": False, "message": message}
+        )
+
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "success": True,
+            "message": message,
+            "data": {"is_updated": result}
         }
     )
