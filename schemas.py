@@ -8,11 +8,3 @@ class UserRegister(BaseModel):
 class UserLogin(BaseModel):
     username: str
     password: str
-
-
-
-class Task(BaseModel):
-    token: str
-    name: str
-    project_id: int
-
