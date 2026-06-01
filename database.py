@@ -484,3 +484,35 @@ async def update_description_group(token: str, group_id: int, description: str, 
     await db.commit()
 
     return True, 200, "Описание группы обновлено!"
+
+
+async def group_rename(token: str, group_id: int, name: str, db: AsyncSession):    
+    user, status_code, message = await get_user_by_token(token, db)
+    if not user:
+        return None, status_code, message
+
+    if not name or not name.strip():
+        return None, 400, "Имя не может быть пустым"
+    
+    if len(name) >= 20:
+        return None, 400, "Имя слишком длинное (макс. 20 символов)"
+    
+    if len(name) < 5:
+        return None, 400, "Имя слишком короткое (мин. 5 символов)"
+
+    member_res = await db.execute(select(GroupMember).where(GroupMember.group_id == group_id, GroupMember.user_id == user.id))
+    if not member_res.scalar_one_or_none():
+        return None, 403, "Только участники группы могут изменять имя"
+    
+    result = await db.execute(select(Group).where(Group.id == group_id))
+    group = result.scalar_one_or_none()
+
+    if not group:
+        return None, 404, "Такой группы не существует"
+    
+    
+    
+    group.name = name.strip()
+    await db.commit()
+
+    return True, 200, "Имя группы обновлено!"
