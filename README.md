@@ -3,7 +3,7 @@
 > **Минимально рабочий бекенд для мессенджера** на основе **FastAPI** с поддержкой групповых чатов, аутентификации и работы с базой данных.
 
 
-# 🛠 Технологии
+## 🛠 Технологии
 
 | Компонент | Технология |
 |-----------|-----------|
@@ -14,16 +14,16 @@
 | **Хеширование паролей** | Werkzeug |
 
 
-# 🚀 Установка и запуск
+## 🚀 Установка и запуск
 
-## 1. Клонирование репозитория
+### 1. Клонирование репозитория
 
 ```bash
 git clone https://github.com/Levletsplay0/Messenger.git
 cd Messenger
 ```
 
-## 2. Создание виртуального окружения и установка зависимостей
+### 2. Создание виртуального окружения и установка зависимостей
 
 ```bash
 python -m venv venv
@@ -31,21 +31,21 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-## 3. Запуск
+### 3. Запуск
 
 ```bash
 uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 Документация будет доступна по адресу: http://127.0.0.1:8000/docs
 
-# Примеры запросов
-## Регистрация пользователя
+## Примеры запросов
+### Регистрация пользователя
 ```bash
 curl -X POST http://localhost:8000/register \
   -H "Content-Type: application/json" \
   -d '{"username": "alice", "password": "secure123", "email": "alice@example.com"}'
 ```
-## Ответ
+### Ответ
 ```json
 {
   "success": true,
@@ -57,14 +57,16 @@ curl -X POST http://localhost:8000/register \
 }
 ```
 
-## Вход в систему
+---
+
+### Вход в систему
 ```bash
 curl -X POST http://localhost:8000/login \
   -H "Content-Type: application/json" \
   -d '{"username": "alice", "password": "secure123"}'
 ```
 
-## Ответ
+### Ответ
 ```json
 {
   "success": true,
@@ -75,13 +77,15 @@ curl -X POST http://localhost:8000/login \
 }
 ```
 
-## Информация о себе
+---
+
+### Информация о себе
 ```bash
 curl -X GET http://localhost:8000/users/me \
   -H "auth-token: a1b2c3d4e5f6..." \
 ```
 
-## Ответ
+### Ответ
 ```json
 {
   "success": true,
@@ -92,13 +96,16 @@ curl -X GET http://localhost:8000/users/me \
   }
 }
 ```
-# План развития
 
-**1) Добавление аватарок пользователям и группам + работа с файлами в бэке**
+---
 
-**2) Управление группами (Название, аватары, описание и тд)**
+## План развития
 
-**3) Web Socket и real time**
+**1) Web Socket и real time**
+
+**2) Управление сообщениями (удаление, изменение, мб реакции)**
+
+**3) Рефакторинг кода**
 
 
 > Автор: [@Levletsplay0 ](https://github.com/Levletsplay0)  
