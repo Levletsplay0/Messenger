@@ -13,6 +13,7 @@ class User(Base):
     username = Column(String, unique=True, nullable=False)
     password = Column(String, nullable=False)
     email = Column(String, unique=True, nullable=False)
+    description = Column(String, unique=False, nullable=True)
     token = Column(String, nullable=True, unique=True)
     avatar_path = Column(String, nullable=True)
 

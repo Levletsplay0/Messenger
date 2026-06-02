@@ -516,3 +516,21 @@ async def group_rename(token: str, group_id: int, name: str, db: AsyncSession):
     await db.commit()
 
     return True, 200, "Имя группы обновлено!"
+
+
+async def update_user_description(token: str, description: str, db: AsyncSession):    
+    user, status_code, message = await get_user_by_token(token, db)
+    if not user:
+        return None, status_code, message
+
+    if not description or not description.strip():
+        return None, 400, "Описание не может быть пустым"
+    
+    if len(description) > 100:
+        return None, 400, "Описание слишком длинное (макс. 100 символов)"
+
+    
+    user.description = description.strip()
+    await db.commit()
+
+    return True, 200, "Описание обновлено!"

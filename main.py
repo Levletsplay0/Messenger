@@ -7,7 +7,7 @@ from database import (init_db, get_db, create_user, get_user_by_token, auth_user
                       user_logout, users_search, create_group, add_participants_to_group,
                       send_message, get_group_messages, get_user_groups, upload_user_avatar,
                       remove_user_avatar, upload_group_avatar, remove_group_avatar,
-                      update_description_group, group_rename)
+                      update_description_group, group_rename, update_user_description)
 
 from contextlib import asynccontextmanager
 from fastapi.staticfiles import StaticFiles
@@ -81,7 +81,8 @@ async def get_user(auth_token: str = Header(..., description="Токен аут�
                 "id": user.id,
                 "username": user.username,
                 "email": user.email,
-                "avatar_path": user.avatar_path
+                "avatar_path": user.avatar_path,
+                "description": user.description
             }
         }
     )
@@ -337,6 +338,26 @@ async def update_group_description(auth_token: str = Header(..., description="Т
 @app.patch("/groups/{group_id}/name")
 async def update_group_name(auth_token: str = Header(..., description="Токен аутентификации"), group_id: int = Path(..., description="id группы"), name: str = Body(..., description="Название группы", embed=True), db: AsyncSession = Depends(get_db)):
     result, status_code, message = await group_rename(auth_token, group_id, name, db)
+    
+    if status_code != 200 and status_code != 201:
+        return JSONResponse(
+            status_code=status_code,
+            content={"success": False, "message": message}
+        )
+
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "success": True,
+            "message": message,
+            "data": {"is_updated": result}
+        }
+    )
+
+
+@app.patch("/users/me/description")
+async def update_description_user(auth_token: str = Header(..., description="Токен аутентификации"), description: str = Body(..., description="Описание группы", embed=True), db: AsyncSession = Depends(get_db)):
+    result, status_code, message = await update_user_description(auth_token, description, db)
     
     if status_code != 200 and status_code != 201:
         return JSONResponse(
