@@ -265,7 +265,6 @@ async def get_group_messages(token, group_id, limit, offset, db: AsyncSession):
         return [], 403, "Только участники группы могут отправлять сообщения"
     
     
-    
     msg_stmt = (
         select(Message)
         .options(selectinload(Message.author))
@@ -385,15 +384,16 @@ async def upload_group_avatar(token: str, group_id: int, file: UploadFile, db: A
     if not user:
         return None, status_code, message
     
-    member_res = await db.execute(select(GroupMember).where(GroupMember.group_id == group_id, GroupMember.user_id == user.id))
-    if not member_res.scalar_one_or_none():
-        return None, 403, "Только участники группы могут добавлять аватар"
-    
     result = await db.execute(select(Group).where(Group.id == group_id))
     group = result.scalar_one_or_none()
 
     if not group:
         return None, 404, "Такой группы не существует"
+    
+
+    member_res = await db.execute(select(GroupMember).where(GroupMember.group_id == group_id, GroupMember.user_id == user.id))
+    if not member_res.scalar_one_or_none():
+        return None, 403, "Только участники группы могут добавлять аватар"
     
     if group.avatar_path:
         path = Path(group.avatar_path)
@@ -436,15 +436,15 @@ async def remove_group_avatar(token: str, group_id: int, db: AsyncSession):
     if not user:
         return None, status_code, message
 
-    member_res = await db.execute(select(GroupMember).where(GroupMember.group_id == group_id, GroupMember.user_id == user.id))
-    if not member_res.scalar_one_or_none():
-        return None, 403, "Только участники группы могут добавлять аватар"
-    
     result = await db.execute(select(Group).where(Group.id == group_id))
     group = result.scalar_one_or_none()
 
     if not group:
         return None, 404, "Такой группы не существует"
+
+    member_res = await db.execute(select(GroupMember).where(GroupMember.group_id == group_id, GroupMember.user_id == user.id))
+    if not member_res.scalar_one_or_none():
+        return None, 403, "Только участники группы могут добавлять аватар"
     
     if group.avatar_path:
         path = Path(group.avatar_path)
@@ -467,17 +467,16 @@ async def update_description_group(token: str, group_id: int, description: str, 
     
     if len(description) > 100:
         return None, 400, "Описание слишком длинное (макс. 100 символов)"
-
-    member_res = await db.execute(select(GroupMember).where(GroupMember.group_id == group_id, GroupMember.user_id == user.id))
-    if not member_res.scalar_one_or_none():
-        return None, 403, "Только участники группы могут изменять описание"
     
     result = await db.execute(select(Group).where(Group.id == group_id))
     group = result.scalar_one_or_none()
 
     if not group:
         return None, 404, "Такой группы не существует"
-    
+
+    member_res = await db.execute(select(GroupMember).where(GroupMember.group_id == group_id, GroupMember.user_id == user.id))
+    if not member_res.scalar_one_or_none():
+        return None, 403, "Только участники группы могут изменять описание"
     
     
     group.description = description.strip()
@@ -499,17 +498,17 @@ async def group_rename(token: str, group_id: int, name: str, db: AsyncSession):
     
     if len(name) < 5:
         return None, 400, "Имя слишком короткое (мин. 5 символов)"
-
-    member_res = await db.execute(select(GroupMember).where(GroupMember.group_id == group_id, GroupMember.user_id == user.id))
-    if not member_res.scalar_one_or_none():
-        return None, 403, "Только участники группы могут изменять имя"
     
+
     result = await db.execute(select(Group).where(Group.id == group_id))
     group = result.scalar_one_or_none()
 
     if not group:
         return None, 404, "Такой группы не существует"
-    
+
+    member_res = await db.execute(select(GroupMember).where(GroupMember.group_id == group_id, GroupMember.user_id == user.id))
+    if not member_res.scalar_one_or_none():
+        return None, 403, "Только участники группы могут изменять имя"
     
     
     group.name = name.strip()
@@ -534,3 +533,26 @@ async def update_user_description(token: str, description: str, db: AsyncSession
     await db.commit()
 
     return True, 200, "Описание обновлено!"
+
+
+async def check_permissions_ws(token: str, group_id: int, db: AsyncSession):    
+    user, status_code, message = await get_user_by_token(token, db)
+    if not user:
+        return None, status_code, message
+    
+    result = await db.execute(select(Group).where(Group.id == group_id))
+    group = result.scalar_one_or_none()
+
+    if not group:
+        return None, 404, "Такой группы не существует"
+
+    member_res = await db.execute(select(GroupMember).where(
+        GroupMember.group_id == group_id, 
+        GroupMember.user_id == user.id
+    ))
+    
+    if not member_res.scalar_one_or_none():
+        return None, 403, "Только участники группы могут присоединяться"
+    
+    
+    return user, 200, f"Вы состоите в группе: {group_id}"

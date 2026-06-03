@@ -1,16 +1,19 @@
-from fastapi import FastAPI, Depends, Header, Path, Body, Query, UploadFile, File
+from fastapi import (FastAPI, Depends, Header, Path, Body, Query, UploadFile, File,
+                     WebSocket, WebSocketDisconnect)
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from schemas import (UserRegister, UserLogin)
-from database import (init_db, get_db, create_user, get_user_by_token, auth_user,
+from database import (init_db, get_db, AsyncSessionLocal, create_user, get_user_by_token, auth_user,
                       user_logout, users_search, create_group, add_participants_to_group,
                       send_message, get_group_messages, get_user_groups, upload_user_avatar,
                       remove_user_avatar, upload_group_avatar, remove_group_avatar,
-                      update_description_group, group_rename, update_user_description)
+                      update_description_group, group_rename, update_user_description,
+                      check_permissions_ws)
 
 from contextlib import asynccontextmanager
 from fastapi.staticfiles import StaticFiles
+from ws_manager import manager
 
 
 
@@ -373,3 +376,40 @@ async def update_description_user(auth_token: str = Header(..., description="Т�
             "data": {"is_updated": result}
         }
     )
+
+
+@app.websocket("/ws/{group_id}")
+async def websocket_endpoint(websocket: WebSocket, group_id: int, token: str):
+    async with AsyncSessionLocal() as db:
+        user, status_code, message = await check_permissions_ws(token, group_id, db)
+        if status_code != 200 and status_code != 201:
+            await websocket.close(code=status_code, reason=message)
+            return
+
+    await manager.connect(websocket, group_id)
+
+    try:
+        while True:
+            data = await websocket.receive_text()
+
+            if not data or not data.strip():
+                continue
+
+            if len(data) > 5000:
+                await websocket.send_json({"error": "Сообщение слишком длинное (макс. 5000 символов)"})
+                continue
+            
+            async with AsyncSessionLocal() as db:
+                response_data, status_code, message = await send_message(token, data.strip(), group_id, db)
+            
+            if status_code != 200 and status_code != 201:
+                await websocket.send_json({"error": message})
+                continue
+
+            
+            await manager.broadcast(response_data, group_id)
+
+    except WebSocketDisconnect:
+        manager.disconnect(websocket, group_id)
+    except Exception as e:
+        manager.disconnect(websocket, group_id)
