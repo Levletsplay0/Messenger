@@ -4,12 +4,12 @@ from models import User, Base, Group, Message, GroupMember
 from werkzeug.security import generate_password_hash, check_password_hash
 import secrets
 from sqlalchemy.orm import selectinload
-import os
 from pathlib import Path
 from fastapi import UploadFile
 import uuid
+from constants import (DATABASE_URL, ALLOWED_EXTENSIONS, MAX_FILE_SIZE, 
+                       USER_AVATARS_DIR, GROUP_AVATARS_DIR)
 
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://myuser:mypass@localhost:5432/mydb")
 
 async_engine = create_async_engine(DATABASE_URL)
 
@@ -96,25 +96,23 @@ async def user_logout(token, db: AsyncSession):
 
 async def users_search(token, username, limit, offset, db: AsyncSession):
     user, status_code, message = await get_user_by_token(token=token, db=db)
-    if user:
-        stmt = select(User)
-        if username:
-            stmt = stmt.where(User.username.ilike(f"%{username}%"))
-        stmt = stmt.limit(limit).offset(offset)
-        result = await db.execute(stmt)
-        users = result.scalars().all()
-        if not users:
-            return [], 200, "Пользователи не найдены"
-        
-        users_data = [
-            {"id": u.id, "username": u.username, "email": u.email}
-            for u in users
-        ]
-        
-        return users_data, 200, f"Найдено {len(users_data)} пользователей"
-
-    else:
+    if not user:
         return None, status_code, message
+    
+    if not username:
+        return [], 400, "Имя не может быть пустым"
+    
+    result = await db.execute(select(User).where(User.username.ilike(f"%{username}%")).limit(limit).offset(offset))
+    users = result.scalars().all()
+    if not users:
+        return [], 200, "Пользователи не найдены"
+    
+    users_data = [
+        {"id": u.id, "username": u.username, "email": u.email, "avatar_path": u.avatar_path}
+        for u in users
+    ]
+    
+    return users_data, 200, f"Найдено {len(users_data)} пользователей"
 
 
 async def create_group(token, name, db: AsyncSession):
@@ -150,48 +148,44 @@ async def create_group(token, name, db: AsyncSession):
 
 
 async def add_participants_to_group(token, group_id, user_ids, db: AsyncSession):
-    requester, status_code, message = await get_user_by_token(token=token, db=db)
-    if not requester:
+    user, status_code, message = await get_user_by_token(token, db)
+    if not user:
         return None, status_code, message
-    
-    stmt = select(Group).where(Group.id == group_id)
-    result = await db.execute(stmt)
-    group = result.scalar_one_or_none()
-    if not group:
-        return None, 404, "Группа не найдена"
-    
-    is_creator = group.creator_id == requester.id
-
-    if not is_creator:
-        admin_stmt = select(GroupMember).where(
-            GroupMember.group_id == group_id,
-            GroupMember.user_id == requester.id,
-            GroupMember.role == "admin"
-        )
-        admin_res = await db.execute(admin_stmt)
-        if not admin_res.scalar_one_or_none():
-            return None, 403, "Только создатель или админ может добавлять участников"
     
     if not user_ids:
         return None, 400, "Список участников пуст"
     
-    existing_stmt = select(GroupMember.user_id).where(GroupMember.group_id == group_id)
-    existing_res = await db.execute(existing_stmt)
+    result = await db.execute(select(Group).where(Group.id == group_id))
+    group = result.scalar_one_or_none()
+    if not group:
+        return None, 404, "Группа не найдена"
+    
+    is_creator = group.creator_id == user.id
+
+    if not is_creator:
+        admin_res = await db.execute(select(GroupMember).where(
+            GroupMember.group_id == group_id,
+            GroupMember.user_id == user.id,
+            GroupMember.role == "admin"
+        ))
+        if not admin_res.scalar_one_or_none():
+            return None, 403, "Только создатель или админ может добавлять участников"
+    
+    
+    existing_res = await db.execute(select(GroupMember.user_id).where(GroupMember.group_id == group_id))
     existing_ids = set(existing_res.scalars().all())
 
     new_ids = [uid for uid in user_ids if uid not in existing_ids]
     if not new_ids:
         return None, 409, "Все указанные пользователи уже в группе"
     
-    users_stmt = select(User.id).where(User.id.in_(new_ids))
-    users_res = await db.execute(users_stmt)
+    users_res = await db.execute(select(User.id).where(User.id.in_(new_ids)))
     found_ids = set(users_res.scalars().all())
     missing = set(new_ids) - found_ids
     
     if missing:
         return None, 404, f"Пользователи с ID {list(missing)} не найдены"
 
-    
     db.add_all([
         GroupMember(group_id=group_id, user_id=uid, role="member")
         for uid in new_ids
@@ -210,6 +204,12 @@ async def send_message(token, content, group_id, db: AsyncSession):
     if not author:
         return None, status_code, message
     
+    if not content or not content.strip():
+        return None, 400, "Сообщение не может быть пустым"
+
+    if len(content) > 5000:
+        return None, 400, "Сообщение слишком длинное (макс. 5000 символов)"
+    
     result = await db.execute(select(Group).where(Group.id == group_id))
     group = result.scalar_one_or_none()
     if not group:
@@ -222,12 +222,6 @@ async def send_message(token, content, group_id, db: AsyncSession):
     member_res = await db.execute(member_stmt)
     if not member_res.scalar_one_or_none():
         return None, 403, "Только участники группы могут отправлять сообщения"
-    
-    if not content or not content.strip():
-        return None, 400, "Сообщение не может быть пустым"
-    
-    if len(content) > 5000:
-        return None, 400, "Сообщение слишком длинное (макс. 5000 символов)"
     
     new_message = Message(
         content=content.strip(),
@@ -244,15 +238,16 @@ async def send_message(token, content, group_id, db: AsyncSession):
         "content": new_message.content,
         "sender_id": new_message.author_id,
         "sender_username": author.username,
+        "sender_avatar_path": author.avatar_path,
         "group_id": new_message.group_id,
         "sent_at": new_message.sent_at.isoformat() if new_message.sent_at else None
     }, 201, "Сообщение отправлено"
 
 
 async def get_group_messages(token, group_id, limit, offset, db: AsyncSession):
-    user, status_code, message = await get_user_by_token(token=token, db=db)
+    user, status_code, message = await get_user_by_token(token, db)
     if not user:
-        return [], status_code, message
+        return None, status_code, message
     
     result = await db.execute(select(Group).where(Group.id == group_id))
     group = result.scalar_one_or_none()
@@ -269,7 +264,7 @@ async def get_group_messages(token, group_id, limit, offset, db: AsyncSession):
         select(Message)
         .options(selectinload(Message.author))
         .where(Message.group_id == group_id)
-        .order_by(Message.sent_at.asc()) #можно ещё .desc() чтобы было от новых к старым
+        .order_by(Message.sent_at.asc())
         .limit(limit)
         .offset(offset)
     )
@@ -286,6 +281,7 @@ async def get_group_messages(token, group_id, limit, offset, db: AsyncSession):
             "content": m.content,
             "author_id": m.author_id,
             "author_username": m.author.username,
+            "author_avatar_path": m.author.avatar_path,
             "group_id": m.group_id,
             "sent_at": m.sent_at.isoformat() if m.sent_at else None
         }
@@ -295,9 +291,9 @@ async def get_group_messages(token, group_id, limit, offset, db: AsyncSession):
     return data, 200, f"Загружено {len(data)} сообщений"
 
 async def get_user_groups(token, db: AsyncSession):
-    user, status_code, message = await get_user_by_token(token=token, db=db)
+    user, status_code, message = await get_user_by_token(token, db)
     if not user:
-        return [], status_code, message
+        return None, status_code, message
 
     stmt = (
         select(Group, GroupMember.role)
@@ -325,7 +321,7 @@ async def get_user_groups(token, db: AsyncSession):
 
 
 async def upload_user_avatar(token: str, file: UploadFile, db: AsyncSession):
-    user, status_code, message = await get_user_by_token(token=token, db=db)
+    user, status_code, message = await get_user_by_token(token, db)
     if not user:
         return None, status_code, message
     
@@ -337,11 +333,9 @@ async def upload_user_avatar(token: str, file: UploadFile, db: AsyncSession):
     if not file.filename:
         return None, 400, "Файл не указан"
     
-    ALLOWED_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
     if not Path(file.filename).suffix.lower() in ALLOWED_EXTENSIONS:
         return None, 400, f"Разрешены только: {', '.join(ALLOWED_EXTENSIONS)}"
     
-    MAX_FILE_SIZE = 5 * 1024 * 1024
     contents = await file.read()
     if len(contents) > MAX_FILE_SIZE:
         return None, 413, f"Размер файла не должен превышать {MAX_FILE_SIZE // 1024 // 1024} МБ"
@@ -350,9 +344,8 @@ async def upload_user_avatar(token: str, file: UploadFile, db: AsyncSession):
     ext = Path(file.filename).suffix.lower()
     unique_filename = f"{user.id}_{uuid.uuid4().hex}{ext}"
 
-    AVATARS_DIR = Path("static/avatars/users")
-    AVATARS_DIR.mkdir(parents=True, exist_ok=True)
-    file_path = AVATARS_DIR / unique_filename
+    USER_AVATARS_DIR.mkdir(parents=True, exist_ok=True)
+    file_path = USER_AVATARS_DIR / unique_filename
 
     with open(file_path, "wb") as f:
         f.write(contents)
@@ -380,7 +373,7 @@ async def remove_user_avatar(token: str, db: AsyncSession):
 
 
 async def upload_group_avatar(token: str, group_id: int, file: UploadFile, db: AsyncSession):
-    user, status_code, message = await get_user_by_token(token=token, db=db)
+    user, status_code, message = await get_user_by_token(token, db)
     if not user:
         return None, status_code, message
     
@@ -390,7 +383,6 @@ async def upload_group_avatar(token: str, group_id: int, file: UploadFile, db: A
     if not group:
         return None, 404, "Такой группы не существует"
     
-
     member_res = await db.execute(select(GroupMember).where(GroupMember.group_id == group_id, GroupMember.user_id == user.id))
     if not member_res.scalar_one_or_none():
         return None, 403, "Только участники группы могут добавлять аватар"
@@ -400,15 +392,12 @@ async def upload_group_avatar(token: str, group_id: int, file: UploadFile, db: A
         if path.exists() and path.is_file():
             path.unlink()
 
-
     if not file.filename:
         return None, 400, "Файл не указан"
     
-    ALLOWED_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
     if not Path(file.filename).suffix.lower() in ALLOWED_EXTENSIONS:
         return None, 400, f"Разрешены только: {', '.join(ALLOWED_EXTENSIONS)}"
     
-    MAX_FILE_SIZE = 5 * 1024 * 1024
     contents = await file.read()
     if len(contents) > MAX_FILE_SIZE:
         return None, 413, f"Размер файла не должен превышать {MAX_FILE_SIZE // 1024 // 1024} МБ"
@@ -417,9 +406,8 @@ async def upload_group_avatar(token: str, group_id: int, file: UploadFile, db: A
     ext = Path(file.filename).suffix.lower()
     unique_filename = f"{group_id}_{uuid.uuid4().hex}{ext}"
 
-    AVATARS_DIR = Path("static/avatars/groups")
-    AVATARS_DIR.mkdir(parents=True, exist_ok=True)
-    file_path = AVATARS_DIR / unique_filename
+    GROUP_AVATARS_DIR.mkdir(parents=True, exist_ok=True)
+    file_path = GROUP_AVATARS_DIR / unique_filename
 
     with open(file_path, "wb") as f:
         f.write(contents)
