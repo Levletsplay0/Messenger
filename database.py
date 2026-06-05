@@ -635,3 +635,26 @@ async def get_group(token: str, group_id: int, db: AsyncSession):
 
 
     return group_data, 200, "Группа найдена"
+
+
+async def get_user_profile(token: str, user_id: int, db: AsyncSession):
+    requester, status_code, message = await get_user_by_token(token, db)
+    if not requester:
+        return None, status_code, message
+
+    
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    
+    if not user:
+        return None, 404, "Такого пользователя нет"
+
+    user_data = {
+        "id": user.id,
+        "username": user.username,
+        "description": user.description,
+        "avatar_path": user.avatar_path,
+    }
+
+
+    return user_data, 200, "Пользователь найден"
