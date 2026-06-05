@@ -605,3 +605,33 @@ async def delete_message(token: str, message_id: int, db: AsyncSession):
     await db.commit()
 
     return deleted_message_data, 200, "Сообщение удалено"
+
+async def get_group(token: str, group_id: int, db: AsyncSession):
+    user, status_code, message = await get_user_by_token(token, db)
+    if not user:
+        return None, status_code, message
+
+    result = await db.execute(select(Group).where(Group.id == group_id))
+    group = result.scalar_one_or_none()
+    if not group:
+        return None, 404, "Группа не найдена"
+    
+    member_res = await db.execute(select(GroupMember).where(
+        GroupMember.group_id == group_id, 
+        GroupMember.user_id == user.id
+    ))
+    
+    if not member_res.scalar_one_or_none():
+        return None, 403, "Только участники группы могут получить группу"
+    
+    group_data = {
+        "id": group.id,
+        "name": group.name,
+        "description": group.description,
+        "avatar_path": group.avatar_path,
+        "creator_id": group.creator_id,
+        "created_at": group.created_at.isoformat() if group.created_at else None,
+    }
+
+
+    return group_data, 200, "Группа найдена"

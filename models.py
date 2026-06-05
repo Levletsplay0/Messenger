@@ -29,6 +29,7 @@ class Group(Base):
     description = Column(String, nullable=True)
     avatar_path = Column(String, nullable=True)
     creator_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    created_at = Column(DateTime, server_default=func.now())
 
     creator = relationship("User", back_populates="created_groups")
     messages = relationship("Message", back_populates="group", cascade="all, delete-orphan")
