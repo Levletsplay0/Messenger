@@ -1,4 +1,4 @@
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from models import User, Base, Group, Message, GroupMember
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -9,7 +9,6 @@ from fastapi import UploadFile
 import uuid
 from constants import (DATABASE_URL, ALLOWED_EXTENSIONS, MAX_FILE_SIZE, 
                        USER_AVATARS_DIR, GROUP_AVATARS_DIR)
-
 
 async_engine = create_async_engine(DATABASE_URL)
 
@@ -283,7 +282,9 @@ async def get_group_messages(token, group_id, limit, offset, db: AsyncSession):
             "author_username": m.author.username,
             "author_avatar_path": m.author.avatar_path,
             "group_id": m.group_id,
-            "sent_at": m.sent_at.isoformat() if m.sent_at else None
+            "sent_at": m.sent_at.isoformat() if m.sent_at else None,
+            "is_deleted": m.is_deleted,
+            "edited_at": m.edited_at.isoformat() if m.edited_at else None
         }
         for m in messages
     ]
@@ -544,3 +545,67 @@ async def check_permissions_ws(token: str, group_id: int, db: AsyncSession):
     
     
     return user, 200, f"Вы состоите в группе: {group_id}"
+
+
+async def edit_message(token: str, message_id: int, new_content: str, db: AsyncSession):
+    author, status_code, message = await get_user_by_token(token, db)
+    if not author:
+        return None, status_code, message
+
+    result = await db.execute(select(Message).where(Message.id == message_id))
+    msg = result.scalar_one_or_none()
+    if not msg:
+        return None, 404, "Сообщение не найдено"
+
+    if msg.is_deleted:
+        return None, 400, "Нельзя редактировать удалённое сообщение"
+
+    if msg.author_id != author.id:
+        return None, 403, "Только автор может редактировать сообщение"
+
+    if not new_content or not new_content.strip():
+        return None, 400, "Сообщение не может быть пустым"
+
+    if len(new_content) > 5000:
+        return None, 400, "Сообщение слишком длинное (макс. 5000 символов)"
+
+    msg.content = new_content.strip()
+    msg.edited_at = func.now()
+    await db.commit()
+    await db.refresh(msg)
+
+    return {
+        "id": msg.id,
+        "content": msg.content,
+        "sender_id": msg.author_id,
+        "sender_username": author.username,
+        "group_id": msg.group_id,
+        "sent_at": msg.sent_at.isoformat() if msg.sent_at else None,
+        "edited_at": msg.edited_at.isoformat() if msg.edited_at else None,
+        "is_deleted": msg.is_deleted,
+    }, 200, "Сообщение отредактировано"
+
+
+async def delete_message(token: str, message_id: int, db: AsyncSession):
+    author, status_code, message = await get_user_by_token(token=token, db=db)
+    if not author:
+        return None, status_code, message
+
+    result = await db.execute(select(Message).where(Message.id == message_id))
+    msg = result.scalar_one_or_none()
+    if not msg:
+        return None, 404, "Сообщение не найдено"
+
+
+    if msg.author_id != author.id:
+        return None, 403, "Только автор может удалять сообщение"
+    
+    deleted_message_data = {
+        "id": msg.id,
+        "group_id": msg.group_id,
+    }
+
+    await db.delete(msg)
+    await db.commit()
+
+    return deleted_message_data, 200, "Сообщение удалено"

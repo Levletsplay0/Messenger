@@ -9,12 +9,12 @@ from database import (init_db, get_db, AsyncSessionLocal, create_user, get_user_
                       send_message, get_group_messages, get_user_groups, upload_user_avatar,
                       remove_user_avatar, upload_group_avatar, remove_group_avatar,
                       update_description_group, group_rename, update_user_description,
-                      check_permissions_ws)
+                      check_permissions_ws, edit_message, delete_message)
 
 from contextlib import asynccontextmanager
 from fastapi.staticfiles import StaticFiles
 from ws_manager import manager
-
+import json
 
 
 @asynccontextmanager
@@ -377,12 +377,39 @@ async def update_description_user(auth_token: str = Header(..., description="Т�
         }
     )
 
+@app.patch("/groups/{group_id}/messages/{message_id}")
+async def edit_message_endpoint(group_id: int = Path(..., ge=1, description="id группы"), message_id: int = Path(..., ge=1, description="id сообщения"), auth_token: str = Header(..., description="Токен аутентификации"), content: str = Body(..., embed=True, description="Контент сообщения"), db: AsyncSession = Depends(get_db)):
+    result, status_code, message = await edit_message(auth_token, message_id, content, db)
+    if status_code != 200:
+        return JSONResponse(status_code=status_code, content={"success": False, "message": message})
+
+    await manager.broadcast({
+        "type": "edit_message",
+        "data": result
+    }, group_id)
+
+    return JSONResponse(status_code=200, content={"success": True, "message": message, "data": result})
+
+
+@app.delete("/groups/{group_id}/messages/{message_id}")
+async def delete_message_endpoint(group_id: int = Path(..., ge=1, description="id группы"), message_id: int = Path(..., ge=1, description="id сообщения"), auth_token: str = Header(..., description="Токен аутентификации"), db: AsyncSession = Depends(get_db)):
+    result, status_code, message = await delete_message(auth_token, message_id, db)
+    if status_code != 200:
+        return JSONResponse(status_code=status_code, content={"success": False, "message": message})
+
+    await manager.broadcast({
+        "type": "delete_message",
+        "data": result
+    }, group_id)
+
+    return JSONResponse(status_code=200, content={"success": True, "message": message, "data": result})
+
 
 @app.websocket("/ws/{group_id}")
 async def websocket_endpoint(websocket: WebSocket, group_id: int, token: str):
     async with AsyncSessionLocal() as db:
         user, status_code, message = await check_permissions_ws(token, group_id, db)
-        if status_code != 200 and status_code != 201:
+        if status_code != 200:
             await websocket.close(code=status_code, reason=message)
             return
 
@@ -390,24 +417,72 @@ async def websocket_endpoint(websocket: WebSocket, group_id: int, token: str):
 
     try:
         while True:
-            data = await websocket.receive_text()
-
-            if not data or not data.strip():
+            raw = await websocket.receive_text()
+            if not raw or not raw.strip():
                 continue
 
-            if len(data) > 5000:
-                await websocket.send_json({"error": "Сообщение слишком длинное (макс. 5000 символов)"})
+            try:
+                data = json.loads(raw)
+            except json.JSONDecodeError:
+                await websocket.send_json({"error": "Ожидается JSON"})
                 continue
-            
+
+            action = data.get("action", "send_message")
             async with AsyncSessionLocal() as db:
-                response_data, status_code, message = await send_message(token, data.strip(), group_id, db)
-            
-            if status_code != 200 and status_code != 201:
-                await websocket.send_json({"error": message})
-                continue
+                if action == "send_message":
+                    content = data.get("content", "").strip()
+                    if not content:
+                        await websocket.send_json({"error": "Пустое сообщение"})
+                        continue
+                    if len(content) > 5000:
+                        await websocket.send_json({"error": "Слишком длинное сообщение"})
+                        continue
 
-            
-            await manager.broadcast(response_data, group_id)
+                    result, status_code, message = await send_message(token, content, group_id, db)
+                    if status_code != 200 and status_code != 201:
+                        await websocket.send_json({"error": message})
+                        continue
+
+                    await manager.broadcast({
+                        "type": "new_message",
+                        "data": result
+                    }, group_id)
+
+                elif action == "edit_message":
+                    message_id = data.get("message_id")
+                    new_content = data.get("content", "").strip()
+                    if not message_id:
+                        await websocket.send_json({"error": "Не указан message_id"})
+                        continue
+
+                    result, status_code, message = await edit_message(token, message_id, new_content, db)
+                    if status_code != 200:
+                        await websocket.send_json({"error": message})
+                        continue
+
+                    await manager.broadcast({
+                        "type": "edit_message",
+                        "data": result
+                    }, group_id)
+
+                elif action == "delete_message":
+                    message_id = data.get("message_id")
+                    if not message_id:
+                        await websocket.send_json({"error": "Не указан message_id"})
+                        continue
+
+                    result, status_code, message = await delete_message(token, message_id, db)
+                    if status_code != 200:
+                        await websocket.send_json({"error": message})
+                        continue
+
+                    await manager.broadcast({
+                        "type": "delete_message",
+                        "data": result
+                    }, group_id)
+
+                else:
+                    await websocket.send_json({"error": f"Неизвестное действие: {action}"})
 
     except WebSocketDisconnect:
         manager.disconnect(websocket, group_id)

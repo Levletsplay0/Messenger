@@ -58,7 +58,8 @@ class Message(Base):
     group_id = Column(Integer, ForeignKey("groups.id", ondelete="CASCADE"), nullable=False)
     author_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     content = Column(Text, nullable=False)
-    sent_at = Column(DateTime, server_default=func.now(), nullable=False)
+    sent_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    edited_at = Column(DateTime(timezone=True), nullable=True)
 
     group = relationship("Group", back_populates="messages")
     author = relationship("User", back_populates="messages")
