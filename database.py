@@ -283,7 +283,6 @@ async def get_group_messages(token, group_id, limit, offset, db: AsyncSession):
             "author_avatar_path": m.author.avatar_path,
             "group_id": m.group_id,
             "sent_at": m.sent_at.isoformat() if m.sent_at else None,
-            "is_deleted": m.is_deleted,
             "edited_at": m.edited_at.isoformat() if m.edited_at else None
         }
         for m in messages
@@ -557,9 +556,6 @@ async def edit_message(token: str, message_id: int, new_content: str, db: AsyncS
     if not msg:
         return None, 404, "Сообщение не найдено"
 
-    if msg.is_deleted:
-        return None, 400, "Нельзя редактировать удалённое сообщение"
-
     if msg.author_id != author.id:
         return None, 403, "Только автор может редактировать сообщение"
 
@@ -582,7 +578,6 @@ async def edit_message(token: str, message_id: int, new_content: str, db: AsyncS
         "group_id": msg.group_id,
         "sent_at": msg.sent_at.isoformat() if msg.sent_at else None,
         "edited_at": msg.edited_at.isoformat() if msg.edited_at else None,
-        "is_deleted": msg.is_deleted,
     }, 200, "Сообщение отредактировано"
 
 
