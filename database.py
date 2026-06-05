@@ -107,7 +107,7 @@ async def users_search(token, username, limit, offset, db: AsyncSession):
         return [], 200, "Пользователи не найдены"
     
     users_data = [
-        {"id": u.id, "username": u.username, "email": u.email, "avatar_path": u.avatar_path}
+        {"id": u.id, "username": u.username, "email": u.email, "avatar_path": u.avatar_path, "description": u.description}
         for u in users
     ]
     
@@ -311,6 +311,7 @@ async def get_user_groups(token, db: AsyncSession):
             "id": group.id,
             "name": group.name,
             "avatar_path": group.avatar_path,
+            "description": group.description,
             "creator_id": group.creator_id,
             "my_role": role
         }

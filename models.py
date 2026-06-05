@@ -1,7 +1,6 @@
 from sqlalchemy import (Column, String, Integer, ForeignKey, DateTime,
                         func, DateTime, UniqueConstraint, Text)
 from sqlalchemy.orm import declarative_base, relationship
-from datetime import datetime
 
 
 Base = declarative_base()
