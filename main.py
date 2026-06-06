@@ -34,35 +34,35 @@ async def main():
 @app.post("/register")
 async def register(data: UserRegister, db: AsyncSession = Depends(get_db)):
     result, status_code, message = await create_user(data.username, data.password, data.email, db)
-    if status_code != 200:
+    if status_code != 200 and status_code != 201:
         return JSONResponse(
             status_code=status_code,
             content={"success": False, "message": message}
         )
     
-    return JSONResponse (
+    return JSONResponse(
         status_code=status_code,
         content={
             "success": True,
             "message": message,
-            "data": {"id": result.id, "username": result.username}
+            "data": result
         }
     )
 @app.post("/login")
 async def login(data: UserLogin, db: AsyncSession = Depends(get_db)):
     result, status_code, message = await auth_user(data.username, data.password, db)
-    if status_code != 200:
+    if status_code != 200 and status_code != 201:
         return JSONResponse(
             status_code=status_code,
             content={"success": False, "message": message}
         )
     
-    return JSONResponse (
+    return JSONResponse(
         status_code=status_code,
         content={
             "success": True,
             "message": message,
-            "data": {"access_token": result}
+            "data": {"auth_token": result}
         }
     )
     
@@ -76,7 +76,7 @@ async def get_user(auth_token: str = Header(..., description="Токен аут�
         )
     
 
-    return JSONResponse (
+    return JSONResponse(
         status_code=status_code,
         content={
             "success": True,
@@ -93,18 +93,19 @@ async def get_user(auth_token: str = Header(..., description="Токен аут�
 
 @app.post("/logout")
 async def logout(auth_token: str = Header(..., description="Токен аутентификации"), db: AsyncSession = Depends(get_db)):
-    user, status_code, message = await user_logout(auth_token, db)
-    if status_code != 200:
+    result, status_code, message = await user_logout(auth_token, db)
+    if status_code != 200 and status_code != 201:
         return JSONResponse(
             status_code=status_code,
             content={"success": False, "message": message}
         )
     
-    return JSONResponse (
+    return JSONResponse(
         status_code=status_code,
         content={
             "success": True,
             "message": message,
+            "data": result
         }
     )
 
@@ -112,14 +113,14 @@ async def logout(auth_token: str = Header(..., description="Токен ауте�
 @app.get("/users/search")
 async def search_users(auth_token: str = Header(..., description="Токен аутентификации"), username: str = Query(None, description="Поиск по имени"), limit: int = Query(default=20, ge=1, le=100), offset: int = Query(default=0, ge=0), db: AsyncSession = Depends(get_db)):
     users, status_code, message = await users_search(auth_token, username, limit, offset, db)
-    if status_code != 200:
+    if status_code != 200 and status_code != 201:
         return JSONResponse(
             status_code=status_code,
             content={"success": False, "message": message}
         )
     
 
-    return JSONResponse (
+    return JSONResponse(
         status_code=status_code,
         content={
             "success": True,
@@ -137,7 +138,7 @@ async def new_group(auth_token: str = Header(..., description="Токен аут
             content={"success": False, "message": message}
         )
     
-    return JSONResponse (
+    return JSONResponse(
         status_code=status_code,
         content={
             "success": True,
@@ -162,7 +163,7 @@ async def add_group_members(group_id: int = Path(..., ge=1, description="ID гр
             content={"success": False, "message": message}
         )
         
-    return JSONResponse (
+    return JSONResponse(
         status_code=status_code,
         content={
             "success": True,
@@ -173,7 +174,7 @@ async def add_group_members(group_id: int = Path(..., ge=1, description="ID гр
 
 
 @app.post("/groups/{group_id}/messages")
-async def send_message_to_group(group_id: int = Path(..., ge=1, description="ID группы"), auth_token: str = Header(..., description="Токен аутентификации"), content: str = Form(..., embed=True, description="Текст сообщения"), file: UploadFile = File(None, description="Прикрепленный файл"), db: AsyncSession = Depends(get_db)):
+async def send_message_to_group(group_id: int = Path(..., ge=1, description="ID группы"), auth_token: str = Header(..., description="Токен аутентификации"), content: str = Form(None, description="Текст сообщения"), file: UploadFile = File(None, description="Прикрепленный файл"), db: AsyncSession = Depends(get_db)):
     result, status_code, message = await send_message(
         token=auth_token,
         content=content,
@@ -193,7 +194,7 @@ async def send_message_to_group(group_id: int = Path(..., ge=1, description="ID 
         "data": result
     }, group_id)
         
-    return JSONResponse (
+    return JSONResponse(
         status_code=status_code,
         content={
             "success": True,
@@ -218,7 +219,7 @@ async def get_messages_group(group_id: int = Path(..., ge=1, description="ID г�
             content={"success": False, "message": message}
         )
         
-    return JSONResponse (
+    return JSONResponse(
         status_code=status_code,
         content={
             "success": True,
@@ -237,7 +238,7 @@ async def get_groups(auth_token: str = Header(..., description="Токен ау�
             content={"success": False, "message": message}
         )
         
-    return JSONResponse (
+    return JSONResponse(
         status_code=status_code,
         content={
             "success": True,
@@ -261,7 +262,7 @@ async def set_user_avatar(auth_token: str = Header(..., description="Токен 
         content={
             "success": True,
             "message": message,
-            "data": {"avatar_path": result}
+            "data": result
         }
     )
 
@@ -280,7 +281,7 @@ async def delete_user_avatar(auth_token: str = Header(..., description="Токе
         content={
             "success": True,
             "message": message,
-            "data": {"is_deleted": result}
+            "data": result
         }
     )
 
@@ -302,7 +303,7 @@ async def set_group_avatar(auth_token: str = Header(..., description="Токен
         content={
             "success": True,
             "message": message,
-            "data": {"avatar_path": result}
+            "data": result
         }
     )
 
@@ -321,7 +322,7 @@ async def delete_group_avatar(auth_token: str = Header(..., description="Ток�
         content={
             "success": True,
             "message": message,
-            "data": {"is_deleted": result}
+            "data": result
         }
     )
 
@@ -341,7 +342,7 @@ async def update_group_description(auth_token: str = Header(..., description="Т
         content={
             "success": True,
             "message": message,
-            "data": {"is_updated": result}
+            "data": result
         }
     )
 
@@ -360,13 +361,13 @@ async def update_group_name(auth_token: str = Header(..., description="Токе�
         content={
             "success": True,
             "message": message,
-            "data": {"is_updated": result}
+            "data": result
         }
     )
 
 
 @app.patch("/users/me/description")
-async def update_description_user(auth_token: str = Header(..., description="Токен аутентификации"), description: str = Body(..., description="Описание группы", embed=True), db: AsyncSession = Depends(get_db)):
+async def update_description_user(auth_token: str = Header(..., description="Токен аутентификации"), description: str = Body(..., description="Описание пользователя", embed=True), db: AsyncSession = Depends(get_db)):
     result, status_code, message = await update_user_description(auth_token, description, db)
     
     if status_code != 200 and status_code != 201:
@@ -380,68 +381,102 @@ async def update_description_user(auth_token: str = Header(..., description="Т�
         content={
             "success": True,
             "message": message,
-            "data": {"is_updated": result}
+            "data": result
         }
     )
 
 @app.patch("/groups/{group_id}/messages/{message_id}")
 async def edit_message_endpoint(group_id: int = Path(..., ge=1, description="id группы"), message_id: int = Path(..., ge=1, description="id сообщения"), auth_token: str = Header(..., description="Токен аутентификации"), content: str = Body(..., embed=True, description="Контент сообщения"), db: AsyncSession = Depends(get_db)):
     result, status_code, message = await edit_message(auth_token, message_id, content, db)
-    if status_code != 200:
-        return JSONResponse(status_code=status_code, content={"success": False, "message": message})
-
+    
+    if status_code != 200 and status_code != 201:
+        return JSONResponse(
+            status_code=status_code,
+            content={"success": False, "message": message}
+        )
+    
     await manager.broadcast({
         "type": "edit_message",
         "data": result
     }, group_id)
 
-    return JSONResponse(status_code=200, content={"success": True, "message": message, "data": result})
-
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "success": True,
+            "message": message,
+            "data": result
+        }
+    )
 
 @app.delete("/groups/{group_id}/messages/{message_id}")
 async def delete_message_endpoint(group_id: int = Path(..., ge=1, description="id группы"), message_id: int = Path(..., ge=1, description="id сообщения"), auth_token: str = Header(..., description="Токен аутентификации"), db: AsyncSession = Depends(get_db)):
     result, status_code, message = await delete_message(auth_token, message_id, db)
-    if status_code != 200:
-        return JSONResponse(status_code=status_code, content={"success": False, "message": message})
-
+    
+    if status_code != 200 and status_code != 201:
+        return JSONResponse(
+            status_code=status_code,
+            content={"success": False, "message": message}
+        )
+    
     await manager.broadcast({
         "type": "delete_message",
         "data": result
     }, group_id)
 
-    return JSONResponse(status_code=200, content={"success": True, "message": message, "data": result})
-
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "success": True,
+            "message": message,
+            "data": result
+        }
+    )
 
 @app.get("/groups/{group_id}")
 async def get_group_details(group_id: int = Path(..., ge=1, description="id группы"), auth_token: str = Header(..., description="Токен аутентификации"), db: AsyncSession = Depends(get_db)):
     result, status_code, message = await get_group(auth_token, group_id, db)
-    if status_code != 200:
-        return JSONResponse(status_code=status_code, content={"success": False, "message": message})
-
+    if status_code != 200 and status_code != 201:
+        return JSONResponse(
+            status_code=status_code,
+            content={"success": False, "message": message}
+        )
 
     return JSONResponse(
-        status_code=200, 
-        content={"success": True, "message": message, "data": result}
+        status_code=status_code,
+        content={
+            "success": True,
+            "message": message,
+            "data": result
+        }
     )
 
 @app.get("/users/{user_id}")
 async def get_user_details(user_id: int = Path(..., ge=1, description="id пользователя"), auth_token: str = Header(..., description="Токен аутентификации"), db: AsyncSession = Depends(get_db)):
     result, status_code, message = await get_user_profile(auth_token, user_id, db)
-    if status_code != 200:
-        return JSONResponse(status_code=status_code, content={"success": False, "message": message})
-
+    if status_code != 200 and status_code != 201:
+        return JSONResponse(
+            status_code=status_code,
+            content={"success": False, "message": message}
+        )
 
     return JSONResponse(
-        status_code=200, 
-        content={"success": True, "message": message, "data": result}
+        status_code=status_code,
+        content={
+            "success": True,
+            "message": message,
+            "data": result
+        }
     )
 
 
 @app.websocket("/ws/{group_id}")
 async def websocket_endpoint(websocket: WebSocket, group_id: int, token: str):
+    await websocket.accept()
+
     async with AsyncSessionLocal() as db:
         user, status_code, message = await check_permissions_ws(token, group_id, db)
-        if status_code != 200:
+        if status_code != 200 and status_code != 201:
             await websocket.close(code=status_code, reason=message)
             return
 
@@ -488,7 +523,7 @@ async def websocket_endpoint(websocket: WebSocket, group_id: int, token: str):
                         continue
 
                     result, status_code, message = await edit_message(token, message_id, new_content, db)
-                    if status_code != 200:
+                    if status_code != 200 and status_code != 201:
                         await websocket.send_json({"error": message})
                         continue
 
@@ -504,7 +539,7 @@ async def websocket_endpoint(websocket: WebSocket, group_id: int, token: str):
                         continue
 
                     result, status_code, message = await delete_message(token, message_id, db)
-                    if status_code != 200:
+                    if status_code != 200 and status_code != 201:
                         await websocket.send_json({"error": message})
                         continue
 

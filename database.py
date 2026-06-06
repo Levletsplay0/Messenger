@@ -9,6 +9,8 @@ from fastapi import UploadFile
 import uuid
 from constants import (DATABASE_URL, ALLOWED_EXTENSIONS, MAX_FILE_SIZE, 
                        USER_AVATARS_DIR, GROUP_AVATARS_DIR, MESSAGE_FILES_DIR)
+from datetime import datetime, timezone
+
 
 async_engine = create_async_engine(DATABASE_URL)
 
@@ -38,7 +40,13 @@ async def create_user(username, password, email, db: AsyncSession):
     user = User(username=username, password=hashed_password, email=email)
     db.add(user)
     await db.commit()
-    return user, 201, "Пользователь успешно создан"
+    
+    await db.refresh(user)
+
+    return {
+        "id": user.id,
+        "username": user.username
+    }, 201, "Пользователь успешно создан"
 
 
 async def auth_user(username, password, db: AsyncSession):
@@ -77,24 +85,25 @@ async def update_auth_token(user: User, db: AsyncSession):
 async def get_user_by_token(token, db: AsyncSession):
     result = await db.execute(select(User).where(User.token == token))
     user = result.scalar_one_or_none()
-    if user:
-        return user, 200, "Пользователь найден"
-    else:
+    if not user:
         return None, 401, "Токен устарел или невалиден"
+    
+    return user, 200, "Пользователь найден"
 
 
 async def user_logout(token, db: AsyncSession):
-    user, status_code, message = await get_user_by_token(token=token, db=db)
-    if user:
-        user.token = None
-        await db.commit()
-        return user, 200, "Вы разлогинены"
-    else:
+    user, status_code, message = await get_user_by_token(token, db)
+    if not user:
         return None, status_code, message
+    
+    user.token = None
+    await db.commit()
+    return {"is_logged_out": True}, 200, "Вы разлогинены"
+
 
 
 async def users_search(token, username, limit, offset, db: AsyncSession):
-    user, status_code, message = await get_user_by_token(token=token, db=db)
+    user, status_code, message = await get_user_by_token(token, db)
     if not user:
         return None, status_code, message
     
@@ -115,7 +124,7 @@ async def users_search(token, username, limit, offset, db: AsyncSession):
 
 
 async def create_group(token, name, db: AsyncSession):
-    creator, status_code, message = await get_user_by_token(token=token, db=db)
+    creator, status_code, message = await get_user_by_token(token, db)
     if not creator:
         return None, status_code, message
     
@@ -143,6 +152,7 @@ async def create_group(token, name, db: AsyncSession):
         "id": new_group.id,
         "name": new_group.name,
         "creator_id": new_group.creator_id,
+        "created_at": new_group.created_at.isoformat(),
     }, 201, "Группа успешно создана"
 
 
@@ -199,7 +209,7 @@ async def add_participants_to_group(token, group_id, user_ids, db: AsyncSession)
 
 
 async def send_message(token, content, group_id, db: AsyncSession, file: UploadFile = None):
-    author, status_code, message = await get_user_by_token(token=token, db=db)
+    author, status_code, message = await get_user_by_token(token, db)
     if not author:
         return None, status_code, message
     
@@ -209,7 +219,7 @@ async def send_message(token, content, group_id, db: AsyncSession, file: UploadF
     if not has_content and not has_file:
         return None, 400, "Сообщение не может быть пустым"
 
-    if len(content) > 5000:
+    if has_content and len(content) > 5000:
         return None, 400, "Сообщение слишком длинное (макс. 5000 символов)"
     
     result = await db.execute(select(Group).where(Group.id == group_id))
@@ -261,9 +271,9 @@ async def send_message(token, content, group_id, db: AsyncSession, file: UploadF
     return {
         "id": new_message.id,
         "content": new_message.content,
-        "sender_id": new_message.author_id,
-        "sender_username": author.username,
-        "sender_avatar_path": author.avatar_path,
+        "author_id": new_message.author_id,
+        "author_username": author.username,
+        "author_avatar_path": author.avatar_path,
         "group_id": new_message.group_id,
         "sent_at": new_message.sent_at.isoformat() if new_message.sent_at else None,
         "file": {
@@ -287,7 +297,7 @@ async def get_group_messages(token, group_id, limit, offset, db: AsyncSession):
 
     member_res = await db.execute(select(GroupMember).where(GroupMember.group_id == group_id, GroupMember.user_id == user.id))
     if not member_res.scalar_one_or_none():
-        return [], 403, "Только участники группы могут отправлять сообщения"
+        return [], 403, "Только участники группы могут просматривать сообщения"
     
     
     msg_stmt = (
@@ -370,7 +380,7 @@ async def upload_user_avatar(token: str, file: UploadFile, db: AsyncSession):
     if not file.filename:
         return None, 400, "Файл не указан"
     
-    if not Path(file.filename).suffix.lower() in ALLOWED_EXTENSIONS:
+    if Path(file.filename).suffix.lower() not in ALLOWED_EXTENSIONS:
         return None, 400, f"Разрешены только: {', '.join(ALLOWED_EXTENSIONS)}"
     
     contents = await file.read()
@@ -390,7 +400,7 @@ async def upload_user_avatar(token: str, file: UploadFile, db: AsyncSession):
     user.avatar_path = str(file_path)
     await db.commit()
 
-    return str(file_path), 200, "Аватарка успешно обновлена"
+    return {"avatar_path": str(file_path)}, 200, "Аватарка успешно обновлена"
 
 
 async def remove_user_avatar(token: str, db: AsyncSession):    
@@ -406,7 +416,7 @@ async def remove_user_avatar(token: str, db: AsyncSession):
     user.avatar_path = None
     await db.commit()
 
-    return True, 200, "Аватарка успешно удалена"
+    return {"is_deleted": True}, 200, "Аватарка успешно удалена"
 
 
 async def upload_group_avatar(token: str, group_id: int, file: UploadFile, db: AsyncSession):
@@ -432,7 +442,7 @@ async def upload_group_avatar(token: str, group_id: int, file: UploadFile, db: A
     if not file.filename:
         return None, 400, "Файл не указан"
     
-    if not Path(file.filename).suffix.lower() in ALLOWED_EXTENSIONS:
+    if Path(file.filename).suffix.lower() not in ALLOWED_EXTENSIONS:
         return None, 400, f"Разрешены только: {', '.join(ALLOWED_EXTENSIONS)}"
     
     contents = await file.read()
@@ -453,7 +463,7 @@ async def upload_group_avatar(token: str, group_id: int, file: UploadFile, db: A
     group.avatar_path = str(file_path)
     await db.commit()
 
-    return str(file_path), 200, "Аватарка группы успешно обновлена"
+    return {"avatar_path": str(file_path)}, 200, "Аватарка группы успешно обновлена"
 
 
 async def remove_group_avatar(token: str, group_id: int, db: AsyncSession):    
@@ -479,7 +489,7 @@ async def remove_group_avatar(token: str, group_id: int, db: AsyncSession):
     group.avatar_path = None
     await db.commit()
 
-    return True, 200, "Аватарка группы успешно удалена"
+    return {"is_deleted": True}, 200, "Аватарка группы успешно удалена"
 
 
 async def update_description_group(token: str, group_id: int, description: str, db: AsyncSession):    
@@ -507,7 +517,7 @@ async def update_description_group(token: str, group_id: int, description: str, 
     group.description = description.strip()
     await db.commit()
 
-    return True, 200, "Описание группы обновлено!"
+    return {"is_updated": True}, 200, "Описание группы обновлено!"
 
 
 async def group_rename(token: str, group_id: int, name: str, db: AsyncSession):    
@@ -539,7 +549,7 @@ async def group_rename(token: str, group_id: int, name: str, db: AsyncSession):
     group.name = name.strip()
     await db.commit()
 
-    return True, 200, "Имя группы обновлено!"
+    return {"is_updated": True}, 200, "Имя группы обновлено!"
 
 
 async def update_user_description(token: str, description: str, db: AsyncSession):    
@@ -557,7 +567,7 @@ async def update_user_description(token: str, description: str, db: AsyncSession
     user.description = description.strip()
     await db.commit()
 
-    return True, 200, "Описание обновлено!"
+    return {"is_updated": True}, 200, "Описание обновлено!"
 
 
 async def check_permissions_ws(token: str, group_id: int, db: AsyncSession):    
@@ -603,15 +613,16 @@ async def edit_message(token: str, message_id: int, new_content: str, db: AsyncS
         return None, 400, "Сообщение слишком длинное (макс. 5000 символов)"
 
     msg.content = new_content.strip()
-    msg.edited_at = func.now()
+    msg.edited_at = datetime.now(timezone.utc)
     await db.commit()
     await db.refresh(msg)
 
     return {
         "id": msg.id,
         "content": msg.content,
-        "sender_id": msg.author_id,
-        "sender_username": author.username,
+        "author_id": msg.author_id,
+        "author_username": author.username,
+        "author_avatar_path": author.avatar_path,
         "group_id": msg.group_id,
         "sent_at": msg.sent_at.isoformat() if msg.sent_at else None,
         "edited_at": msg.edited_at.isoformat() if msg.edited_at else None,
@@ -619,7 +630,7 @@ async def edit_message(token: str, message_id: int, new_content: str, db: AsyncS
 
 
 async def delete_message(token: str, message_id: int, db: AsyncSession):
-    author, status_code, message = await get_user_by_token(token=token, db=db)
+    author, status_code, message = await get_user_by_token(token, db)
     if not author:
         return None, status_code, message
 
@@ -636,6 +647,11 @@ async def delete_message(token: str, message_id: int, db: AsyncSession):
         "id": msg.id,
         "group_id": msg.group_id,
     }
+    
+    if msg.file_path:
+        path = Path(msg.file_path)
+        if path.exists() and path.is_file():
+            path.unlink()
 
     await db.delete(msg)
     await db.commit()
