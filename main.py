@@ -187,6 +187,11 @@ async def send_message_to_group(group_id: int = Path(..., ge=1, description="ID 
             status_code=status_code,
             content={"success": False, "message": message}
         )
+
+    await manager.broadcast({
+        "type": "new_message",
+        "data": result
+    }, group_id)
         
     return JSONResponse (
         status_code=status_code,
