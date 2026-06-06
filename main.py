@@ -1,5 +1,5 @@
 from fastapi import (FastAPI, Depends, Header, Path, Body, Query, UploadFile, File,
-                     WebSocket, WebSocketDisconnect)
+                     WebSocket, WebSocketDisconnect, Form)
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -173,11 +173,12 @@ async def add_group_members(group_id: int = Path(..., ge=1, description="ID гр
 
 
 @app.post("/groups/{group_id}/messages")
-async def send_message_to_group(group_id: int = Path(..., ge=1, description="ID группы"), auth_token: str = Header(..., description="Токен аутентификации"), content: str = Body(..., embed=True, description="Контент сообщения"), db: AsyncSession = Depends(get_db)):
+async def send_message_to_group(group_id: int = Path(..., ge=1, description="ID группы"), auth_token: str = Header(..., description="Токен аутентификации"), content: str = Form(..., embed=True, description="Текст сообщения"), file: UploadFile = File(None, description="Прикрепленный файл"), db: AsyncSession = Depends(get_db)):
     result, status_code, message = await send_message(
         token=auth_token,
         content=content,
         group_id=group_id,
+        file=file,
         db=db
     )
     

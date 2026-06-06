@@ -8,7 +8,7 @@ from pathlib import Path
 from fastapi import UploadFile
 import uuid
 from constants import (DATABASE_URL, ALLOWED_EXTENSIONS, MAX_FILE_SIZE, 
-                       USER_AVATARS_DIR, GROUP_AVATARS_DIR)
+                       USER_AVATARS_DIR, GROUP_AVATARS_DIR, MESSAGE_FILES_DIR)
 
 async_engine = create_async_engine(DATABASE_URL)
 
@@ -198,12 +198,15 @@ async def add_participants_to_group(token, group_id, user_ids, db: AsyncSession)
     }, 201, f"Добавлено {len(new_ids)} участников"
 
 
-async def send_message(token, content, group_id, db: AsyncSession):
+async def send_message(token, content, group_id, db: AsyncSession, file: UploadFile = None):
     author, status_code, message = await get_user_by_token(token=token, db=db)
     if not author:
         return None, status_code, message
     
-    if not content or not content.strip():
+    has_content = content and content.strip()
+    has_file = file and file.filename
+
+    if not has_content and not has_file:
         return None, 400, "Сообщение не может быть пустым"
 
     if len(content) > 5000:
@@ -222,10 +225,33 @@ async def send_message(token, content, group_id, db: AsyncSession):
     if not member_res.scalar_one_or_none():
         return None, 403, "Только участники группы могут отправлять сообщения"
     
+    file_path = None
+    file_name = None
+    file_size = None
+
+    if has_file:
+        contents = await file.read()
+
+        file_ext = Path(file.filename).suffix.lower()
+        unique_filename = f"{uuid.uuid4().hex}{file_ext}"
+
+        MESSAGE_FILES_DIR.mkdir(parents=True, exist_ok=True)
+        file_full_path = MESSAGE_FILES_DIR / unique_filename
+
+        with open(file_full_path, "wb") as f:
+            f.write(contents)
+        
+        file_path = str(file_full_path)
+        file_name = file.filename
+        file_size = len(contents)
+
     new_message = Message(
-        content=content.strip(),
+        content=content.strip() if has_content else None,
         author_id=author.id,
         group_id=group_id,
+        file_path=file_path,
+        file_name=file_name,
+        file_size=file_size
     )
 
     db.add(new_message)
@@ -239,7 +265,12 @@ async def send_message(token, content, group_id, db: AsyncSession):
         "sender_username": author.username,
         "sender_avatar_path": author.avatar_path,
         "group_id": new_message.group_id,
-        "sent_at": new_message.sent_at.isoformat() if new_message.sent_at else None
+        "sent_at": new_message.sent_at.isoformat() if new_message.sent_at else None,
+        "file": {
+            "path": new_message.file_path,
+            "name": new_message.file_name,
+            "size": new_message.file_size
+        } if new_message.file_path else None
     }, 201, "Сообщение отправлено"
 
 
@@ -283,7 +314,12 @@ async def get_group_messages(token, group_id, limit, offset, db: AsyncSession):
             "author_avatar_path": m.author.avatar_path,
             "group_id": m.group_id,
             "sent_at": m.sent_at.isoformat() if m.sent_at else None,
-            "edited_at": m.edited_at.isoformat() if m.edited_at else None
+            "edited_at": m.edited_at.isoformat() if m.edited_at else None,
+            "file": {
+                "path": m.file_path,
+                "name": m.file_name,
+                "size": m.file_size
+            } if m.file_path else None
         }
         for m in messages
     ]

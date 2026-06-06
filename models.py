@@ -57,7 +57,10 @@ class Message(Base):
     id = Column(Integer, primary_key=True)
     group_id = Column(Integer, ForeignKey("groups.id", ondelete="CASCADE"), nullable=False)
     author_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    content = Column(Text, nullable=False)
+    content = Column(Text, nullable=True)
+    file_path = Column(String, nullable=True)
+    file_name = Column(String, nullable=True)
+    file_size = Column(Integer, nullable=True)
     sent_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     edited_at = Column(DateTime(timezone=True), nullable=True)
 
