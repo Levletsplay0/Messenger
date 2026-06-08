@@ -472,7 +472,6 @@ async def get_user_details(user_id: int = Path(..., ge=1, description="id пол
 
 @app.websocket("/ws/{group_id}")
 async def websocket_endpoint(websocket: WebSocket, group_id: int, token: str):
-    await websocket.accept()
 
     async with AsyncSessionLocal() as db:
         user, status_code, message = await check_permissions_ws(token, group_id, db)

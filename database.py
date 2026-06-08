@@ -304,7 +304,7 @@ async def get_group_messages(token, group_id, limit, offset, db: AsyncSession):
         select(Message)
         .options(selectinload(Message.author))
         .where(Message.group_id == group_id)
-        .order_by(Message.sent_at.asc())
+        .order_by(Message.sent_at.desc())
         .limit(limit)
         .offset(offset)
     )
@@ -314,6 +314,8 @@ async def get_group_messages(token, group_id, limit, offset, db: AsyncSession):
 
     if not messages:
         return [], 200, "Сообщений нет"
+    
+    messages = list(reversed(messages)) 
 
     data = [
         {
@@ -626,6 +628,11 @@ async def edit_message(token: str, message_id: int, new_content: str, db: AsyncS
         "group_id": msg.group_id,
         "sent_at": msg.sent_at.isoformat() if msg.sent_at else None,
         "edited_at": msg.edited_at.isoformat() if msg.edited_at else None,
+        "file": {
+            "path": msg.file_path,
+            "name": msg.file_name,
+            "size": msg.file_size
+        } if msg.file_path else None
     }, 200, "Сообщение отредактировано"
 
 
