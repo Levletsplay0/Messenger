@@ -16,11 +16,12 @@ from contextlib import asynccontextmanager
 from fastapi.staticfiles import StaticFiles
 from ws_manager import manager
 import json
-
+from pathlib import Path as FilePath
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
+    FilePath("static").mkdir(parents=True, exist_ok=True)
     
     yield
 
