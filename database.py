@@ -717,3 +717,34 @@ async def get_user_profile(token: str, user_id: int, db: AsyncSession):
 
 
     return user_data, 200, "Пользователь найден"
+
+async def leave_from_group(group_id: int, token: str, db: AsyncSession):
+    user, status_code, message = await get_user_by_token(token, db)
+    if not user:
+        return None, status_code, message
+    
+    group_result = await db.execute(select(Group).where(Group.id == group_id))
+    group = group_result.scalar_one_or_none()
+    if not group:
+        return None, 404, "Группа не найдена"
+    
+    member_result = await db.execute(
+        select(GroupMember).where(
+            GroupMember.group_id == group_id,
+            GroupMember.user_id == user.id
+        )
+    )
+    member = member_result.scalar_one_or_none()
+    if not member:
+        return None, 403, "Вы не состоите в этой группе"
+        
+    await db.delete(member)
+    await db.commit()
+
+    data = {
+        "group_id": group_id,
+        "user_id": user.id,
+        "username": user.username
+    }
+    
+    return data, 200, "Вы вышли из группы"

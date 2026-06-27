@@ -10,7 +10,7 @@ from database import (init_db, get_db, AsyncSessionLocal, create_user, get_user_
                       remove_user_avatar, upload_group_avatar, remove_group_avatar,
                       update_description_group, group_rename, update_user_description,
                       check_permissions_ws, edit_message, delete_message, get_group,
-                      get_user_profile)
+                      get_user_profile, leave_from_group)
 
 from contextlib import asynccontextmanager
 from fastapi.staticfiles import StaticFiles
@@ -470,6 +470,24 @@ async def get_user_details(user_id: int = Path(..., ge=1, description="id пол
         }
     )
 
+@app.post("/groups/{group_id}/leave")
+async def get_user_details(group_id: int = Path(..., ge=1), auth_token: str = Header(..., description="Токен аутентификации"), db: AsyncSession = Depends(get_db)):
+    result, status_code, message = await leave_from_group(auth_token, group_id, db)
+    if status_code != 200 and status_code != 201:
+        return JSONResponse(
+            status_code=status_code,
+            content={"success": False, "message": message}
+        )
+    
+
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "success": True,
+            "message": message,
+            "data": result
+        }
+    )
 
 @app.websocket("/ws/{group_id}")
 async def websocket_endpoint(websocket: WebSocket, group_id: int, token: str):
