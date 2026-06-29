@@ -748,3 +748,78 @@ async def leave_from_group(group_id: int, token: str, db: AsyncSession):
     }
     
     return data, 200, "Вы вышли из группы"
+
+
+async def kick_users_from_group(group_id: int, user_ids: list[int], token: str, db: AsyncSession):
+    user, status_code, message = await get_user_by_token(token, db)
+    if not user:
+        return None, status_code, message
+    
+    group_result = await db.execute(select(Group).where(Group.id == group_id))
+    group = group_result.scalar_one_or_none()
+    if not group:
+        return None, 404, "Группа не найдена"
+    
+
+    is_creator = group.creator_id == user.id
+
+    if not is_creator:
+        admin_res = await db.execute(select(GroupMember).where(
+            GroupMember.group_id == group_id,
+            GroupMember.user_id == user.id,
+            GroupMember.role == "admin"
+        ))
+        if not admin_res.scalar_one_or_none():
+            return None, 403, "Только создатель или админ может исключать участников"
+    
+    if user.id in user_ids:
+        return None, 400, "Нельзя исключить самого себя"
+    
+    if group.creator_id in user_ids:
+        return None, 403, "Нельзя исключить создателя группы"
+    
+    users_res = await db.execute(select(User.id).where(User.id.in_(user_ids)))
+    found_ids = set(users_res.scalars().all())
+    missing = set(user_ids) - found_ids
+    if missing:
+        return None, 404, f"Пользователи с ID {list(missing)} не найдены"
+    
+
+    members_res = await db.execute(
+        select(GroupMember.user_id).where(
+            GroupMember.group_id == group_id,
+            GroupMember.user_id.in_(user_ids)
+        )
+    )
+    member_ids = set(members_res.scalars().all())
+    not_members = set(user_ids) - member_ids
+    if not_members:
+        return None, 400, f"Пользователи с ID {list(not_members)} не состоят в группе"
+    
+    if not is_creator:
+        kicked_admins_res = await db.execute(
+            select(GroupMember.user_id).where(
+                GroupMember.group_id == group_id,
+                GroupMember.user_id.in_(user_ids),
+                GroupMember.role == "admin"
+            )
+        )
+        kicked_admins = set(kicked_admins_res.scalars().all())
+        if kicked_admins:
+            return None, 403, "Админ может исключать только обычных участников"
+        
+    await db.execute(
+        GroupMember.__table__.delete().where(
+            GroupMember.group_id == group_id,
+            GroupMember.user_id.in_(user_ids)
+        )
+    )
+    await db.commit()
+
+    data = {
+        "group_id": group_id,
+        "kicked_count": len(user_ids),
+        "kicked_user_ids": user_ids
+    }
+    
+    return data, 200, f"Исключено {len(user_ids)} участников"
