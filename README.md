@@ -25,7 +25,8 @@
 ## ✨ Возможности
 
 - Регистрация и аутентификация пользователей (токены)
-- Групповые чаты с возможностью добавления участников
+- Групповые чаты с возможностью добавления и исключения участников
+- **Управление участниками группы** (кик, выход из группы)
 - Отправка, редактирование и удаление сообщений
 - **Real-time обмен сообщениями** через WebSocket
 - Загрузка и удаление аватарок пользователей и групп
@@ -130,6 +131,8 @@ uvicorn main:app --reload --host 0.0.0.0 --port 8000
 | `GET` | `/groups` | Список групп текущего пользователя |
 | `GET` | `/groups/{group_id}` | Детали группы |
 | `POST` | `/groups/{group_id}/members` | Добавление участников в группу |
+| `POST` | `/groups/{group_id}/leave` | Выход из группы |
+| `POST` | `/groups/{group_id}/kick` | Исключение участников из группы (только для создателя/админа) |
 | `POST` | `/groups/{group_id}/avatar` | Загрузка аватарки группы |
 | `DELETE` | `/groups/{group_id}/avatar` | Удаление аватарки группы |
 | `PATCH` | `/groups/{group_id}/name` | Изменение названия группы |
@@ -225,7 +228,7 @@ curl -X POST http://localhost:8000/login \
   "success": true,
   "message": "Успешный вход",
   "data": {
-    "access_token": "a1b2c3d4e5f6..."
+    "auth_token": "a1b2c3d4e5f6..."
   }
 }
 ```
@@ -272,7 +275,59 @@ curl -X POST http://localhost:8000/groups/1/messages \
   -F "content=Привет, группа!"
 ```
 
+---
 
+### Выход из группы
+
+```bash
+curl -X POST http://localhost:8000/groups/1/leave \
+  -H "auth-token: a1b2c3d4e5f6..."
+```
+
+**Ответ:**
+```json
+{
+  "success": true,
+  "message": "Вы вышли из группы",
+  "data": {
+    "group_id": 1
+  }
+}
+```
+
+---
+
+### Исключение участников из группы (kick)
+
+Доступно только **создателю группы** или **админу**. Админ не может кикнуть другого админа или создателя.
+
+```bash
+curl -X POST http://localhost:8000/groups/1/kick \
+  -H "auth-token: a1b2c3d4e5f6..." \
+  -H "Content-Type: application/json" \
+  -d '{"user_ids": [3, 5, 7]}'
+```
+
+**Ответ (успех):**
+```json
+{
+  "success": true,
+  "message": "Исключено 3 участников",
+  "data": {
+    "group_id": 1,
+    "kicked_count": 3,
+    "kicked_user_ids": [3, 5, 7],
+  }
+}
+```
+
+**Ответ (ошибка прав):**
+```json
+{
+  "success": false,
+  "message": "Только создатель или админ может исключать участников"
+}
+```
 
 ---
 
