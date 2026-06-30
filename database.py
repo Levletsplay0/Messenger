@@ -27,7 +27,7 @@ async def init_db():
     async with async_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
-async def create_user(username, password, email, db: AsyncSession):
+async def create_user(username, password, email, name, last_name, db: AsyncSession):
     existing_username = await get_user_by_name(username, db)
     if existing_username:
         return None, 409, f"Пользователь с никнеймом: {username} уже существует"
@@ -37,7 +37,7 @@ async def create_user(username, password, email, db: AsyncSession):
         return None, 409, f"Пользователь с почтой: {email} уже существует"
     
     hashed_password = generate_password_hash(password)
-    user = User(username=username, password=hashed_password, email=email)
+    user = User(username=username, password=hashed_password, name=name, last_name=last_name, email=email)
     db.add(user)
     await db.commit()
     
@@ -45,7 +45,9 @@ async def create_user(username, password, email, db: AsyncSession):
 
     return {
         "id": user.id,
-        "username": user.username
+        "username": user.username,
+        "name": user.name,
+        "last_name": user.last_name
     }, 201, "Пользователь успешно создан"
 
 
@@ -90,6 +92,22 @@ async def get_user_by_token(token, db: AsyncSession):
     
     return user, 200, "Пользователь найден"
 
+async def get_yourself(token, db: AsyncSession):
+    user, status_code, message = await get_user_by_token(token, db)
+    if not user:
+        return None, status_code, message
+
+    data = {
+        "id": user.id,
+        "username": user.username,
+        "email": user.email,
+        "name": user.name,
+        "last_name": user.last_name,
+        "avatar_path": user.avatar_path,
+        "description": user.description,
+    }
+    
+    return data, 200, "Пользователь найден"
 
 async def user_logout(token, db: AsyncSession):
     user, status_code, message = await get_user_by_token(token, db)
@@ -116,7 +134,7 @@ async def users_search(token, username, limit, offset, db: AsyncSession):
         return [], 200, "Пользователи не найдены"
     
     users_data = [
-        {"id": u.id, "username": u.username, "email": u.email, "avatar_path": u.avatar_path, "description": u.description}
+        {"id": u.id, "username": u.username, "email": u.email, "name": u.name, "last_name": u.last_name, "avatar_path": u.avatar_path, "description": u.description}
         for u in users
     ]
     

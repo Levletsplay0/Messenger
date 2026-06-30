@@ -10,7 +10,7 @@ from database import (init_db, get_db, AsyncSessionLocal, create_user, get_user_
                       remove_user_avatar, upload_group_avatar, remove_group_avatar,
                       update_description_group, group_rename, update_user_description,
                       check_permissions_ws, edit_message, delete_message, get_group,
-                      get_user_profile, leave_from_group, kick_users_from_group)
+                      get_user_profile, leave_from_group, kick_users_from_group, get_yourself)
 
 from contextlib import asynccontextmanager
 from fastapi.staticfiles import StaticFiles
@@ -34,7 +34,7 @@ async def main():
 
 @app.post("/register")
 async def register(data: UserRegister, db: AsyncSession = Depends(get_db)):
-    result, status_code, message = await create_user(data.username, data.password, data.email, db)
+    result, status_code, message = await create_user(data.username, data.password, data.email, data.name, data.last_name, db)
     if status_code != 200 and status_code != 201:
         return JSONResponse(
             status_code=status_code,
@@ -49,6 +49,7 @@ async def register(data: UserRegister, db: AsyncSession = Depends(get_db)):
             "data": result
         }
     )
+
 @app.post("/login")
 async def login(data: UserLogin, db: AsyncSession = Depends(get_db)):
     result, status_code, message = await auth_user(data.username, data.password, db)
@@ -69,7 +70,7 @@ async def login(data: UserLogin, db: AsyncSession = Depends(get_db)):
     
 @app.get("/users/me")
 async def get_user(auth_token: str = Header(..., description="Токен аутентификации"), db: AsyncSession = Depends(get_db)):
-    user, status_code, message = await get_user_by_token(auth_token, db)
+    data, status_code, message = await get_yourself(auth_token, db)
     if status_code != 200:
         return JSONResponse(
             status_code=status_code,
@@ -82,13 +83,7 @@ async def get_user(auth_token: str = Header(..., description="Токен аут�
         content={
             "success": True,
             "message": message,
-            "data": {
-                "id": user.id,
-                "username": user.username,
-                "email": user.email,
-                "avatar_path": user.avatar_path,
-                "description": user.description
-            }
+            "data": data
         }
     )
 
