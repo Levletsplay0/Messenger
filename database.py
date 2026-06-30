@@ -729,6 +729,8 @@ async def get_user_profile(token: str, user_id: int, db: AsyncSession):
     user_data = {
         "id": user.id,
         "username": user.username,
+        "name": user.name,
+        "last_name": user.last_name,
         "description": user.description,
         "avatar_path": user.avatar_path,
     }

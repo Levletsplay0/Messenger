@@ -26,13 +26,16 @@
 
 - Регистрация и аутентификация пользователей (токены)
 - Групповые чаты с возможностью добавления и исключения участников
-- **Управление участниками группы** (кик, выход из группы)
+- **Управление участниками группы** (кик, выход из группы, роли: создатель/админ/участник)
 - Отправка, редактирование и удаление сообщений
 - **Real-time обмен сообщениями** через WebSocket
 - Загрузка и удаление аватарок пользователей и групп
 - Прикрепление файлов к сообщениям
-- Поиск пользователей
+- Поиск пользователей **с пагинацией**
 - Просмотр профилей пользователей и групп
+- **Редактирование профилей** (описание пользователя, название и описание группы)
+- **Имя и фамилия** при регистрации
+- Отдача загруженных файлов (аватарок и вложений) по прямым ссылкам через статический роутинг
 
 ## 📁 Структура проекта
 
@@ -53,7 +56,7 @@ Messenger/
 
 ### Вариант 1: Docker Compose (рекомендуется)
 
-Самый быстрый способ запустить проект — вместе с базой данных PostgreSQL.
+Самый быстрый способ запустить проект вместе с базой данных PostgreSQL.
 
 ```bash
 git clone https://github.com/Levletsplay0/Messenger.git
@@ -109,43 +112,46 @@ uvicorn main:app --reload --host 0.0.0.0 --port 8000
 
 ## 📡 API Endpoints
 
+> **Примечание:** Аутентификация во всех защищенных эндпоинтах происходит через заголовок `auth-token`.
+> Все ответы API имеют единый формат: `{"success": true/false, "message": "...", "data": ...}`.
+
 ### Аутентификация и пользователи
 
-| Метод | Эндпоинт | Описание |
-|---|---|---|
-| `POST` | `/register` | Регистрация нового пользователя |
-| `POST` | `/login` | Вход в систему, получение токена |
-| `POST` | `/logout` | Выход из системы (инвалидация токена) |
-| `GET` | `/users/me` | Информация о текущем пользователе |
-| `GET` | `/users/{user_id}` | Информация о пользователе по ID |
-| `GET` | `/users/search` | Поиск пользователей по имени |
-| `POST` | `/users/me/avatar` | Загрузка аватарки пользователя |
-| `DELETE` | `/users/me/avatar` | Удаление аватарки пользователя |
-| `PATCH` | `/users/me/description` | Обновление описания профиля |
+| Метод | Эндпоинт | Описание | Параметры (Body/Query) |
+|---|---|---|---|
+| `POST` | `/register` | Регистрация нового пользователя | `username`, `password`, `email`, `name`, `last_name` |
+| `POST` | `/login` | Вход в систему, получение токена | `username`, `password` |
+| `POST` | `/logout` | Выход из системы (инвалидация токена) | - |
+| `GET` | `/users/me` | Информация о текущем пользователе | - |
+| `GET` | `/users/{user_id}` | Просмотр профиля другого пользователя | - |
+| `GET` | `/users/search` | Поиск пользователей по имени | Query: `username`, `limit` (по умолч. 20), `offset` |
+| `POST` | `/users/me/avatar` | Загрузка аватарки пользователя | Form: `file` (png, jpg, jpeg, webp) |
+| `DELETE` | `/users/me/avatar` | Удаление аватарки пользователя | - |
+| `PATCH` | `/users/me/description` | Обновление описания профиля (макс. 100 символов) | `description` |
 
 ### Группы
 
-| Метод | Эндпоинт | Описание |
-|---|---|---|
-| `POST` | `/groups` | Создание новой группы |
-| `GET` | `/groups` | Список групп текущего пользователя |
-| `GET` | `/groups/{group_id}` | Детали группы |
-| `POST` | `/groups/{group_id}/members` | Добавление участников в группу |
-| `POST` | `/groups/{group_id}/leave` | Выход из группы |
-| `POST` | `/groups/{group_id}/kick` | Исключение участников из группы (только для создателя/админа) |
-| `POST` | `/groups/{group_id}/avatar` | Загрузка аватарки группы |
-| `DELETE` | `/groups/{group_id}/avatar` | Удаление аватарки группы |
-| `PATCH` | `/groups/{group_id}/name` | Изменение названия группы |
-| `PATCH` | `/groups/{group_id}/description` | Изменение описания группы |
+| Метод | Эндпоинт | Описание | Параметры (Body/Query) |
+|---|---|---|---|
+| `POST` | `/groups` | Создание новой группы | `name` (от 5 до 20 символов) |
+| `GET` | `/groups` | Список групп текущего пользователя | - |
+| `GET` | `/groups/{group_id}` | Детали группы | - |
+| `POST` | `/groups/{group_id}/members` | Добавление участников в группу | `user_ids` (список ID) |
+| `POST` | `/groups/{group_id}/leave` | Выход из группы | - |
+| `POST` | `/groups/{group_id}/kick` | Исключение участников (только создатель/админ) | `user_ids` (список ID) |
+| `POST` | `/groups/{group_id}/avatar` | Загрузка аватарки группы | Form: `file` (png, jpg, jpeg, webp) |
+| `DELETE` | `/groups/{group_id}/avatar` | Удаление аватарки группы | - |
+| `PATCH` | `/groups/{group_id}/name` | Изменение названия группы (от 5 до 20 символов) | `name` |
+| `PATCH` | `/groups/{group_id}/description` | Изменение описания группы (макс. 100 символов) | `description` |
 
 ### Сообщения
 
-| Метод | Эндпоинт | Описание |
-|---|---|---|
-| `POST` | `/groups/{group_id}/messages` | Отправка сообщения (с файлом) |
-| `GET` | `/groups/{group_id}/messages` | Получение истории сообщений |
-| `PATCH` | `/groups/{group_id}/messages/{message_id}` | Редактирование сообщения |
-| `DELETE` | `/groups/{group_id}/messages/{message_id}` | Удаление сообщения |
+| Метод | Эндпоинт | Описание | Параметры (Body/Query) |
+|---|---|---|---|
+| `POST` | `/groups/{group_id}/messages` | Отправка сообщения (с файлом) | Form: `content`, `file` |
+| `GET` | `/groups/{group_id}/messages` | Получение истории сообщений | Query: `limit` (по умолч. 20), `offset` |
+| `PATCH` | `/groups/{group_id}/messages/{message_id}` | Редактирование сообщения (макс. 5000 символов) | `content` |
+| `DELETE` | `/groups/{group_id}/messages/{message_id}` | Удаление сообщения | - |
 
 ### WebSocket
 
@@ -153,9 +159,15 @@ uvicorn main:app --reload --host 0.0.0.0 --port 8000
 |---|---|---|
 | `WS` | `/ws/{group_id}?token=<auth_token>` | Real-time обмен сообщениями в группе |
 
+## 📂 Статические файлы
+Все загруженные файлы (аватарки пользователей, аватарки групп, файлы из сообщений) сохраняются в локальную директорию `static/` и доступны по прямым ссылкам.
+Например, если в ответе API пришел `avatar_path: "static/user_avatars/1_abc.png"`, вы можете получить изображение по адресу:
+`http://localhost:8000/static/user_avatars/1_abc.png`
+
 ## 🔌 WebSocket
 
-WebSocket-соединение позволяет получать и отправлять сообщения в реальном времени.
+WebSocket-соединение позволяет получать и отправлять сообщения в реальном времени. 
+> **Важно:** Через WebSocket можно отправлять **только текст**. Для отправки файлов используйте HTTP `POST /groups/{group_id}/messages`.
 
 ### Подключение
 
@@ -163,7 +175,7 @@ WebSocket-соединение позволяет получать и отпра
 ws://localhost:8000/ws/{group_id}?token=<your_auth_token>
 ```
 
-### Формат сообщений
+### Формат сообщений (Клиент -> Сервер)
 
 **Отправка сообщения:**
 ```json
@@ -190,6 +202,15 @@ ws://localhost:8000/ws/{group_id}?token=<your_auth_token>
 }
 ```
 
+### Ответы сервера (Broadcast)
+Сервер автоматически рассылает обновления всем подключенным участникам группы:
+```json
+{
+  "type": "new_message", // или "edit_message", "delete_message"
+  "data": { ... } // полные данные сообщения
+}
+```
+
 ## 📋 Примеры запросов
 
 ### Регистрация пользователя
@@ -197,7 +218,13 @@ ws://localhost:8000/ws/{group_id}?token=<your_auth_token>
 ```bash
 curl -X POST http://localhost:8000/register \
   -H "Content-Type: application/json" \
-  -d '{"username": "alice", "password": "secure123", "email": "alice@example.com"}'
+  -d '{
+    "username": "alice", 
+    "password": "secure123", 
+    "email": "alice@example.com",
+    "name": "Алиса",
+    "last_name": "Селезнева"
+  }'
 ```
 
 **Ответ:**
@@ -207,7 +234,9 @@ curl -X POST http://localhost:8000/register \
   "message": "Пользователь успешно создан",
   "data": {
     "id": 1,
-    "username": "alice"
+    "username": "alice",
+    "name": "Алиса",
+    "last_name": "Селезнева"
   }
 }
 ```
@@ -235,7 +264,7 @@ curl -X POST http://localhost:8000/login \
 
 ---
 
-### Информация о себе
+### Информация о себе (Профиль)
 
 ```bash
 curl -X GET http://localhost:8000/users/me \
@@ -246,12 +275,28 @@ curl -X GET http://localhost:8000/users/me \
 ```json
 {
   "success": true,
+  "message": "Пользователь найден",
   "data": {
     "id": 1,
     "username": "alice",
-    "email": "alice@example.com"
+    "email": "alice@example.com",
+    "name": "Алиса",
+    "last_name": "Селезнева",
+    "avatar_path": "static/user_avatars/1_abc123.png",
+    "description": "Люблю программировать"
   }
 }
+```
+
+---
+
+### Обновление описания профиля
+
+```bash
+curl -X PATCH http://localhost:8000/users/me/description \
+  -H "auth-token: a1b2c3d4e5f6..." \
+  -H "Content-Type: application/json" \
+  -d '{"description": "Новое описание обо мне"}'
 ```
 
 ---
@@ -265,14 +310,157 @@ curl -X POST http://localhost:8000/groups \
   -d '{"name": "Моя группа"}'
 ```
 
+**Ответ:**
+```json
+{
+  "success": true,
+  "message": "Группа успешно создана",
+  "data": {
+    "id": 1,
+    "name": "Моя группа",
+    "creator_id": 1,
+    "created_at": "2026-06-30T12:00:00"
+  }
+}
+```
+
 ---
 
-### Отправка сообщения в группу
+### Добавление участников в группу
+
+```bash
+curl -X POST http://localhost:8000/groups/1/members \
+  -H "auth-token: a1b2c3d4e5f6..." \
+  -H "Content-Type: application/json" \
+  -d '{"user_ids": [2, 3]}'
+```
+
+---
+
+### Отправка сообщения в группу (с файлом)
 
 ```bash
 curl -X POST http://localhost:8000/groups/1/messages \
   -H "auth-token: a1b2c3d4e5f6..." \
-  -F "content=Привет, группа!"
+  -F "content=Привет, группа!" \
+  -F "file=@document.pdf"
+```
+
+**Ответ:**
+```json
+{
+  "success": true,
+  "message": "Сообщение отправлено",
+  "data": {
+    "id": 1,
+    "content": "Привет, группа!",
+    "author_id": 1,
+    "author_username": "alice",
+    "author_avatar_path": "static/user_avatars/1_abc123.png",
+    "group_id": 1,
+    "sent_at": "2026-06-30T12:05:00",
+    "file": {
+      "path": "static/message_files/abc123.pdf",
+      "name": "document.pdf",
+      "size": 102400
+    }
+  }
+}
+```
+
+---
+
+### Получение истории сообщений (с пагинацией)
+
+```bash
+curl -X GET "http://localhost:8000/groups/1/messages?limit=20&offset=0" \
+  -H "auth-token: a1b2c3d4e5f6..."
+```
+
+**Ответ:**
+```json
+{
+  "success": true,
+  "message": "Загружено 1 сообщений",
+  "data": [
+    {
+      "id": 1,
+      "content": "Привет, группа!",
+      "author_id": 1,
+      "author_username": "alice",
+      "author_avatar_path": "static/user_avatars/1_abc123.png",
+      "group_id": 1,
+      "sent_at": "2026-06-30T12:05:00",
+      "edited_at": null,
+      "file": {
+        "path": "static/message_files/abc123.pdf",
+        "name": "document.pdf",
+        "size": 102400
+      }
+    }
+  ]
+}
+```
+
+---
+
+### Редактирование сообщения
+
+```bash
+curl -X PATCH http://localhost:8000/groups/1/messages/1 \
+  -H "auth-token: a1b2c3d4e5f6..." \
+  -H "Content-Type: application/json" \
+  -d '{"content": "Привет, группа! (отредактировано)"}'
+```
+
+---
+
+### Просмотр профиля другого пользователя
+
+```bash
+curl -X GET http://localhost:8000/users/2 \
+  -H "auth-token: a1b2c3d4e5f6..."
+```
+
+**Ответ:**
+```json
+{
+  "success": true,
+  "message": "Пользователь найден",
+  "data": {
+    "id": 2,
+    "username": "bob",
+    "name": "Боб",
+    "last_name": "Большой",
+    "description": "Привет, я Боб",
+    "avatar_path": null
+  }
+}
+```
+
+---
+
+### Просмотр деталей группы
+
+```bash
+curl -X GET http://localhost:8000/groups/1 \
+  -H "auth-token: a1b2c3d4e5f6..."
+```
+
+**Ответ:**
+```json
+{
+  "success": true,
+  "message": "Группа найдена",
+  "data": {
+    "id": 1,
+    "name": "Моя группа",
+    "description": "Описание группы",
+    "avatar_path": null,
+    "creator_id": 1,
+    "created_at": "2026-06-30T12:00:00"
+  }
+}
 ```
 
 ---
@@ -290,7 +478,9 @@ curl -X POST http://localhost:8000/groups/1/leave \
   "success": true,
   "message": "Вы вышли из группы",
   "data": {
-    "group_id": 1
+    "group_id": 1,
+    "user_id": 1,
+    "username": "alice"
   }
 }
 ```
@@ -299,7 +489,9 @@ curl -X POST http://localhost:8000/groups/1/leave \
 
 ### Исключение участников из группы (kick)
 
-Доступно только **создателю группы** или **админу**. Админ не может кикнуть другого админа или создателя.
+Доступно только **создателю группы** или **админу**. 
+- Админ не может кикнуть другого админа или создателя.
+- Админ может исключать только обычных участников.
 
 ```bash
 curl -X POST http://localhost:8000/groups/1/kick \
@@ -316,7 +508,7 @@ curl -X POST http://localhost:8000/groups/1/kick \
   "data": {
     "group_id": 1,
     "kicked_count": 3,
-    "kicked_user_ids": [3, 5, 7],
+    "kicked_user_ids": [3, 5, 7]
   }
 }
 ```
