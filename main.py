@@ -580,6 +580,24 @@ async def websocket_endpoint(websocket: WebSocket, group_id: int, token: str):
                         "data": result
                     }, group_id)
 
+                elif action == "typing":
+                    await manager.broadcast({
+                        "type": "typing",
+                        "data": {
+                            "user_id": user.id,
+                            "username": user.username
+                        }
+                    }, group_id, exclude_websocket=websocket)
+                
+                elif action == "stop_typing":
+                    await manager.broadcast({
+                        "type": "stop_typing",
+                        "data": {
+                            "user_id": user.id,
+                            "username": user.username
+                        }
+                    }, group_id, exclude_websocket=websocket)
+
                 else:
                     await websocket.send_json({"error": f"Неизвестное действие: {action}"})
 

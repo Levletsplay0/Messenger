@@ -202,12 +202,26 @@ ws://localhost:8000/ws/{group_id}?token=<your_auth_token>
 }
 ```
 
+**Разослать всем "Печатает..."**
+```json
+{
+  "action": "typing"
+}
+```
+
+**Перестать "Печатать"**
+```json
+{
+  "action": "stop_typing"
+}
+```
+
 ### Ответы сервера (Broadcast)
 Сервер автоматически рассылает обновления всем подключенным участникам группы:
 ```json
 {
-  "type": "new_message", // или "edit_message", "delete_message"
-  "data": { ... } // полные данные сообщения
+  "type": "new_message", // или "edit_message", "delete_message", "typing", "stop_typing"
+  "data": { ... } // полные данные сообщения или user_id и username
 }
 ```
 

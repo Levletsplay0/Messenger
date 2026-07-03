@@ -17,9 +17,10 @@ class ConnectionManager:
             if not self.active_connections[group_id]:
                 del self.active_connections[group_id]
 
-    async def broadcast(self, message: dict, group_id: int):
+    async def broadcast(self, message: dict, group_id: int, exclude_websocket: WebSocket = None):
         if group_id in self.active_connections:
             for connection in self.active_connections[group_id]:
-                await connection.send_json(message)
+                if connection != exclude_websocket:
+                    await connection.send_json(message)
 
 manager = ConnectionManager()
