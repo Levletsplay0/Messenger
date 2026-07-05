@@ -485,7 +485,7 @@ async def get_user_details(user_id: int = Path(..., ge=1, description="id пол
     )
 
 @app.post("/groups/{group_id}/leave")
-async def get_user_details(group_id: int = Path(..., ge=1), auth_token: str = Header(..., description="Токен аутентификации"), db: AsyncSession = Depends(get_db)):
+async def leave_user_from_group(group_id: int = Path(..., ge=1), auth_token: str = Header(..., description="Токен аутентификации"), db: AsyncSession = Depends(get_db)):
     result, status_code, message = await leave_from_group(auth_token, group_id, db)
     if status_code != 200 and status_code != 201:
         return JSONResponse(
