@@ -699,7 +699,7 @@ async def get_group(token: str, group_id: int, db: AsyncSession):
     ))
     
     if not member_res.scalar_one_or_none():
-        return None, 403, "Только участники группы могут получить группу"
+        return None, 403, "Только участники группы могут получить данные группы"
     
     group_data = {
         "id": group.id,
@@ -843,3 +843,52 @@ async def kick_users_from_group(group_id: int, user_ids: list[int], token: str, 
     }
     
     return data, 200, f"Исключено {len(user_ids)} участников"
+
+
+async def get_group_members_from_db(token: str, group_id: int, db: AsyncSession):
+    user, status_code, message = await get_user_by_token(token, db)
+    if not user:
+        return [], status_code, message
+    
+    group_result = await db.execute(select(Group).where(Group.id == group_id))
+    group = group_result.scalar_one_or_none()
+    if not group:
+        return [], 404, "Группа не найдена"
+    
+    member_res = await db.execute(select(GroupMember).where(
+        GroupMember.group_id == group_id, 
+        GroupMember.user_id == user.id
+    ))
+    
+    if not member_res.scalar_one_or_none():
+        return [], 403, "Только участники группы могут получить участников группы"
+    
+
+    stmt = (
+        select(User, GroupMember.role, GroupMember.joined_at)
+        .join(GroupMember, User.id == GroupMember.user_id)
+        .where(GroupMember.group_id == group_id)
+        .order_by(GroupMember.joined_at.asc())
+    )
+
+    result = await db.execute(stmt)
+    rows = result.all()
+
+    if not rows:
+        return [], 200, "Пока нет участников"
+    
+    data = [
+        {
+            "id": u.id,
+            "username": u.username,
+            "name": u.name,
+            "last_name": u.last_name,
+            "avatar_path": u.avatar_path,
+            "description": u.description,
+            "role": role,
+            "joined_at": joined_at.isoformat() if joined_at else None
+        }
+        for u, role, joined_at in rows 
+    ]
+    
+    return data, 200, f"Участники получены"
