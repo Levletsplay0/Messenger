@@ -548,7 +548,7 @@ async def group_rename(token: str, group_id: int, name: str, db: AsyncSession):
     if not name or not name.strip():
         return None, 400, "Имя не может быть пустым"
     
-    if len(name) >= 20:
+    if len(name) > 20:
         return None, 400, "Имя слишком длинное (макс. 20 символов)"
     
     if len(name) < 5:
