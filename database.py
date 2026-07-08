@@ -738,7 +738,7 @@ async def get_user_profile(token: str, user_id: int, db: AsyncSession):
 
     return user_data, 200, "Пользователь найден"
 
-async def leave_from_group(group_id: int, token: str, db: AsyncSession):
+async def leave_from_group(token: str, group_id: int, db: AsyncSession):
     user, status_code, message = await get_user_by_token(token, db)
     if not user:
         return None, status_code, message
