@@ -701,6 +701,11 @@ async def get_group(token: str, group_id: int, db: AsyncSession):
     if not member_res.scalar_one_or_none():
         return None, 403, "Только участники группы могут получить данные группы"
     
+    member_count_res = await db.execute(
+        select(func.count(GroupMember.id)).where(GroupMember.group_id == group_id)
+    )
+    member_count = member_count_res.scalar()
+        
     group_data = {
         "id": group.id,
         "name": group.name,
@@ -708,6 +713,7 @@ async def get_group(token: str, group_id: int, db: AsyncSession):
         "avatar_path": group.avatar_path,
         "creator_id": group.creator_id,
         "created_at": group.created_at.isoformat() if group.created_at else None,
+        "member_count": member_count
     }
 
 
