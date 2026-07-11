@@ -898,3 +898,45 @@ async def get_group_members_from_db(token: str, group_id: int, db: AsyncSession)
     ]
     
     return data, 200, f"Участники получены"
+
+
+async def delete_group(token: str, group_id: int, db: AsyncSession):
+    user, status_code, message = await get_user_by_token(token, db)
+    if not user:
+        return None, status_code, message
+
+    result = await db.execute(select(Group).where(Group.id == group_id))
+    group = result.scalar_one_or_none()
+    
+    if not group:
+        return None, 404, "Группа не найдена"
+
+    if group.creator_id != user.id:
+        return None, 403, "Только создатель группы может её удалить"
+
+    messages_result = await db.execute(
+        select(Message).where(Message.group_id == group_id)
+    )
+    messages = messages_result.scalars().all()
+
+    for msg in messages:
+        if msg.file_path:
+            path = Path(msg.file_path)
+            if path.exists() and path.is_file():
+                path.unlink()
+
+    if group.avatar_path:
+        avatar_path = Path(group.avatar_path)
+        if avatar_path.exists() and avatar_path.is_file():
+            avatar_path.unlink()
+
+    deleted_group_data = {
+        "id": group.id,
+        "name": group.name,
+        "creator_id": group.creator_id
+    }
+
+    await db.delete(group)
+    await db.commit()
+
+    return deleted_group_data, 200, "Группа успешно удалена"

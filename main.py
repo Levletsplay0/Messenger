@@ -11,7 +11,7 @@ from database import (init_db, get_db, AsyncSessionLocal, create_user, get_user_
                       update_description_group, group_rename, update_user_description,
                       check_permissions_ws, edit_message, delete_message, get_group,
                       get_user_profile, leave_from_group, kick_users_from_group, get_yourself,
-                      get_group_members_from_db)
+                      get_group_members_from_db, delete_group)
 
 from contextlib import asynccontextmanager
 from fastapi.staticfiles import StaticFiles
@@ -513,6 +513,24 @@ async def kick_users(group_id: int = Path(..., ge=1), user_ids: list[int] = Body
         )
     
 
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "success": True,
+            "message": message,
+            "data": result
+        }
+    )
+
+@app.delete("/groups/{group_id}/")
+async def delete_group_endpoint(group_id: int = Path(..., ge=1), auth_token: str = Header(..., description="Токен аутентификации"), db: AsyncSession = Depends(get_db)):
+    result, status_code, message = await delete_group(auth_token, group_id, db)
+    if status_code != 200 and status_code != 201:
+        return JSONResponse(
+            status_code=status_code,
+            content={"success": False, "message": message}
+        )
+    
     return JSONResponse(
         status_code=status_code,
         content={
