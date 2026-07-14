@@ -338,12 +338,12 @@ async def kick_users_from_group(group_id: int, user_ids: list[int], token: str, 
 async def get_group_members_from_db(token: str, group_id: int, db: AsyncSession):
     user, status_code, message = await get_user_by_token(token, db)
     if not user:
-        return [], status_code, message
+        return None, status_code, message
     
     group_result = await db.execute(select(Group).where(Group.id == group_id))
     group = group_result.scalar_one_or_none()
     if not group:
-        return [], 404, "Группа не найдена"
+        return None, 404, "Группа не найдена"
     
     member_res = await db.execute(select(GroupMember).where(
         GroupMember.group_id == group_id, 
@@ -351,7 +351,7 @@ async def get_group_members_from_db(token: str, group_id: int, db: AsyncSession)
     ))
     
     if not member_res.scalar_one_or_none():
-        return [], 403, "Только участники группы могут получить участников группы"
+        return None, 403, "Только участники группы могут получить участников группы"
     
 
     stmt = (

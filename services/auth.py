@@ -1,5 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from models import User, Base, Group, Message, GroupMember
+from models import User
 from werkzeug.security import generate_password_hash, check_password_hash
 from services.user import (get_user_by_name, get_user_by_email, get_user_by_token)
 import secrets
