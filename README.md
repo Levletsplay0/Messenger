@@ -27,19 +27,22 @@
 - Регистрация и аутентификация пользователей (токены)
 - Групповые чаты с возможностью добавления и исключения участников
 - **Управление участниками группы** (кик, выход из группы, роли: создатель/админ/участник)
-- Отправка, редактирование и удаление сообщений
-- **Real-time обмен сообщениями** через WebSocket
+- Отправка, редактирование и удаление сообщений (**поддержка отправки файла**)
+- **Real-time обмен сообщениями** через WebSocket (включая статусы "печатает...")
 - Загрузка и удаление аватарок пользователей и групп
 - Прикрепление файлов к сообщениям
 - Поиск пользователей **с пагинацией**
 - Просмотр профилей пользователей и групп
-- **Редактирование профилей** (описание пользователя, название и описание группы)
+- **Редактирование профилей** (описание пользователя, название, описание и аватар группы)
 - **Имя и фамилия** при регистрации
 - Отдача загруженных файлов (аватарок и вложений) по прямым ссылкам через статический роутинг
+- **Удаление группы** (только создателем, с автоматической очисткой всех файлов группы)
 
 ## 📁 Структура проекта
 
-```
+Проект был рефакторизован для лучшей модульности, читаемости и поддержки:
+
+```text
 Messenger/
 ├── main.py
 ├── database.py
@@ -49,7 +52,18 @@ Messenger/
 ├── constants.py
 ├── requirements.txt
 ├── Dockerfile
-└── docker-compose.yml
+├── docker-compose.yml
+├── routers/
+│   ├── auth.py
+│   ├── users.py
+│   ├── groups.py
+│   └── ws.py
+└── services/
+    ├── auth.py
+    ├── user.py
+    ├── group.py
+    ├── message.py
+    └── ws.py
 ```
 
 ## 🚀 Установка и запуск
@@ -112,7 +126,7 @@ uvicorn main:app --reload --host 0.0.0.0 --port 8000
 
 ## 📡 API Endpoints
 
-> **Примечание:** Аутентификация во всех защищенных эндпоинтах происходит через заголовок `auth-token`.
+> **Примечание:** Аутентификация во всех защищенных эндпоинтах происходит через заголовок `auth-token`.  
 > Все ответы API имеют единый формат: `{"success": true/false, "message": "...", "data": ...}`.
 
 ### Аутентификация и пользователи
@@ -136,42 +150,46 @@ uvicorn main:app --reload --host 0.0.0.0 --port 8000
 | `POST` | `/groups` | Создание новой группы | `name` (от 5 до 20 символов) |
 | `GET` | `/groups` | Список групп текущего пользователя | - |
 | `GET` | `/groups/{group_id}` | Детали группы | - |
+| `GET` | `/groups/{group_id}/members` | **Список участников группы** (с ролями и датой вступления) | - |
 | `POST` | `/groups/{group_id}/members` | Добавление участников в группу | `user_ids` (список ID) |
 | `POST` | `/groups/{group_id}/leave` | Выход из группы | - |
 | `POST` | `/groups/{group_id}/kick` | Исключение участников (только создатель/админ) | `user_ids` (список ID) |
-| `POST` | `/groups/{group_id}/avatar` | Загрузка аватарки группы | Form: `file` (png, jpg, jpeg, webp) |
-| `DELETE` | `/groups/{group_id}/avatar` | Удаление аватарки группы | - |
-| `PATCH` | `/groups/{group_id}/name` | Изменение названия группы (от 5 до 20 символов) | `name` |
-| `PATCH` | `/groups/{group_id}/description` | Изменение описания группы (макс. 100 символов) | `description` |
+| `DELETE`| `/groups/{group_id}/` | **Удаление группы** (только создатель) | - |
+| `POST` | `/groups/{group_id}/avatar` | Загрузка аватарки группы *(доступно любому участнику)* | Form: `file` (png, jpg, jpeg, webp) |
+| `DELETE` | `/groups/{group_id}/avatar` | Удаление аватарки группы *(доступно любому участнику)* | - |
+| `PATCH` | `/groups/{group_id}/name` | Изменение названия группы *(доступно любому участнику)* | `name` (от 5 до 20 символов) |
+| `PATCH` | `/groups/{group_id}/description` | Изменение описания группы *(доступно любому участнику)* | `description` (макс. 100 символов) |
 
 ### Сообщения
 
 | Метод | Эндпоинт | Описание | Параметры (Body/Query) |
 |---|---|---|---|
-| `POST` | `/groups/{group_id}/messages` | Отправка сообщения (с файлом) | Form: `content`, `file` |
+| `POST` | `/groups/{group_id}/messages` | Отправка сообщения | Form: `content` (опционально*), `file` (опционально*) |
 | `GET` | `/groups/{group_id}/messages` | Получение истории сообщений | Query: `limit` (по умолч. 20), `offset` |
 | `PATCH` | `/groups/{group_id}/messages/{message_id}` | Редактирование сообщения (макс. 5000 символов) | `content` |
 | `DELETE` | `/groups/{group_id}/messages/{message_id}` | Удаление сообщения | - |
+
+> *\*Как минимум один из параметров (`content` или `file`) должен быть заполнен. Теперь можно отправить сообщение, состоящее только из файла.*
 
 ### WebSocket
 
 | Протокол | Эндпоинт | Описание |
 |---|---|---|
-| `WS` | `/ws/{group_id}?token=<auth_token>` | Real-time обмен сообщениями в группе |
+| `WS` | `/ws/{group_id}?token=<auth_token>` | Real-time обмен сообщениями и статусами в группе |
 
 ## 📂 Статические файлы
-Все загруженные файлы (аватарки пользователей, аватарки групп, файлы из сообщений) сохраняются в локальную директорию `static/` и доступны по прямым ссылкам.
-Например, если в ответе API пришел `avatar_path: "static/user_avatars/1_abc.png"`, вы можете получить изображение по адресу:
+Все загруженные файлы (аватарки пользователей, аватарки групп, файлы из сообщений) сохраняются в локальную директорию `static/` и доступны по прямым ссылкам.  
+Например, если в ответе API пришел `avatar_path: "static/user_avatars/1_abc.png"`, вы можете получить изображение по адресу:  
 `http://localhost:8000/static/user_avatars/1_abc.png`
 
 ## 🔌 WebSocket
 
-WebSocket-соединение позволяет получать и отправлять сообщения в реальном времени. 
+WebSocket-соединение позволяет получать и отправлять сообщения в реальном времени.  
 > **Важно:** Через WebSocket можно отправлять **только текст**. Для отправки файлов используйте HTTP `POST /groups/{group_id}/messages`.
 
 ### Подключение
 
-```
+```text
 ws://localhost:8000/ws/{group_id}?token=<your_auth_token>
 ```
 
@@ -221,7 +239,7 @@ ws://localhost:8000/ws/{group_id}?token=<your_auth_token>
 ```json
 {
   "type": "new_message", // или "edit_message", "delete_message", "typing", "stop_typing"
-  "data": { ... } // полные данные сообщения или user_id и username
+  "data": { ... } // полные данные сообщения или объект с user_id и username
 }
 ```
 
@@ -278,43 +296,6 @@ curl -X POST http://localhost:8000/login \
 
 ---
 
-### Информация о себе (Профиль)
-
-```bash
-curl -X GET http://localhost:8000/users/me \
-  -H "auth-token: a1b2c3d4e5f6..."
-```
-
-**Ответ:**
-```json
-{
-  "success": true,
-  "message": "Пользователь найден",
-  "data": {
-    "id": 1,
-    "username": "alice",
-    "email": "alice@example.com",
-    "name": "Алиса",
-    "last_name": "Селезнева",
-    "avatar_path": "static/user_avatars/1_abc123.png",
-    "description": "Люблю программировать"
-  }
-}
-```
-
----
-
-### Обновление описания профиля
-
-```bash
-curl -X PATCH http://localhost:8000/users/me/description \
-  -H "auth-token: a1b2c3d4e5f6..." \
-  -H "Content-Type: application/json" \
-  -d '{"description": "Новое описание обо мне"}'
-```
-
----
-
 ### Создание группы
 
 ```bash
@@ -324,39 +305,42 @@ curl -X POST http://localhost:8000/groups \
   -d '{"name": "Моя группа"}'
 ```
 
+---
+
+### Получение списка участников группы
+
+```bash
+curl -X GET http://localhost:8000/groups/1/members \
+  -H "auth-token: a1b2c3d4e5f6..."
+```
+
 **Ответ:**
 ```json
 {
   "success": true,
-  "message": "Группа успешно создана",
-  "data": {
-    "id": 1,
-    "name": "Моя группа",
-    "creator_id": 1,
-    "created_at": "2026-06-30T12:00:00"
-  }
+  "message": "Участники получены",
+  "data": [
+    {
+      "id": 1,
+      "username": "alice",
+      "name": "Алиса",
+      "last_name": "Селезнева",
+      "avatar_path": "static/user_avatars/1_abc123.png",
+      "description": "Люблю программировать",
+      "role": "creator",
+      "joined_at": "2026-06-30T12:00:00"
+    }
+  ]
 }
 ```
 
 ---
 
-### Добавление участников в группу
-
-```bash
-curl -X POST http://localhost:8000/groups/1/members \
-  -H "auth-token: a1b2c3d4e5f6..." \
-  -H "Content-Type: application/json" \
-  -d '{"user_ids": [2, 3]}'
-```
-
----
-
-### Отправка сообщения в группу (с файлом)
+### Отправка сообщения в группу (только файл, без текста)
 
 ```bash
 curl -X POST http://localhost:8000/groups/1/messages \
   -H "auth-token: a1b2c3d4e5f6..." \
-  -F "content=Привет, группа!" \
   -F "file=@document.pdf"
 ```
 
@@ -367,7 +351,7 @@ curl -X POST http://localhost:8000/groups/1/messages \
   "message": "Сообщение отправлено",
   "data": {
     "id": 1,
-    "content": "Привет, группа!",
+    "content": null,
     "author_id": 1,
     "author_username": "alice",
     "author_avatar_path": "static/user_avatars/1_abc123.png",
@@ -384,10 +368,10 @@ curl -X POST http://localhost:8000/groups/1/messages \
 
 ---
 
-### Получение истории сообщений (с пагинацией)
+### Удаление группы
 
 ```bash
-curl -X GET "http://localhost:8000/groups/1/messages?limit=20&offset=0" \
+curl -X DELETE http://localhost:8000/groups/1 \
   -H "auth-token: a1b2c3d4e5f6..."
 ```
 
@@ -395,106 +379,11 @@ curl -X GET "http://localhost:8000/groups/1/messages?limit=20&offset=0" \
 ```json
 {
   "success": true,
-  "message": "Загружено 1 сообщений",
-  "data": [
-    {
-      "id": 1,
-      "content": "Привет, группа!",
-      "author_id": 1,
-      "author_username": "alice",
-      "author_avatar_path": "static/user_avatars/1_abc123.png",
-      "group_id": 1,
-      "sent_at": "2026-06-30T12:05:00",
-      "edited_at": null,
-      "file": {
-        "path": "static/message_files/abc123.pdf",
-        "name": "document.pdf",
-        "size": 102400
-      }
-    }
-  ]
-}
-```
-
----
-
-### Редактирование сообщения
-
-```bash
-curl -X PATCH http://localhost:8000/groups/1/messages/1 \
-  -H "auth-token: a1b2c3d4e5f6..." \
-  -H "Content-Type: application/json" \
-  -d '{"content": "Привет, группа! (отредактировано)"}'
-```
-
----
-
-### Просмотр профиля другого пользователя
-
-```bash
-curl -X GET http://localhost:8000/users/2 \
-  -H "auth-token: a1b2c3d4e5f6..."
-```
-
-**Ответ:**
-```json
-{
-  "success": true,
-  "message": "Пользователь найден",
-  "data": {
-    "id": 2,
-    "username": "bob",
-    "name": "Боб",
-    "last_name": "Большой",
-    "description": "Привет, я Боб",
-    "avatar_path": null
-  }
-}
-```
-
----
-
-### Просмотр деталей группы
-
-```bash
-curl -X GET http://localhost:8000/groups/1 \
-  -H "auth-token: a1b2c3d4e5f6..."
-```
-
-**Ответ:**
-```json
-{
-  "success": true,
-  "message": "Группа найдена",
+  "message": "Группа успешно удалена",
   "data": {
     "id": 1,
     "name": "Моя группа",
-    "description": "Описание группы",
-    "avatar_path": null,
-    "creator_id": 1,
-    "created_at": "2026-06-30T12:00:00"
-  }
-}
-```
-
----
-
-### Выход из группы
-
-```bash
-curl -X POST http://localhost:8000/groups/1/leave \
-  -H "auth-token: a1b2c3d4e5f6..."
-```
-
-**Ответ:**
-```json
-{
-  "success": true,
-  "message": "Вы вышли из группы",
-  "data": {
-    "group_id": 1,
-    "user_id": 1,
-    "username": "alice"
+    "creator_id": 1
   }
 }
 ```
@@ -524,14 +413,6 @@ curl -X POST http://localhost:8000/groups/1/kick \
     "kicked_count": 3,
     "kicked_user_ids": [3, 5, 7]
   }
-}
-```
-
-**Ответ (ошибка прав):**
-```json
-{
-  "success": false,
-  "message": "Только создатель или админ может исключать участников"
 }
 ```
 
