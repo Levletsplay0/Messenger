@@ -1,8 +1,9 @@
 from fastapi import (APIRouter, Depends, Header, UploadFile, File, Query, Body, Path)
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from database import (get_db, get_yourself, users_search, upload_user_avatar, remove_user_avatar,
-                      update_user_description, get_user_profile)
+from database import get_db
+from services.user import (get_yourself, users_search, upload_user_avatar,
+                           remove_user_avatar, update_user_description, get_user_profile)
 
 router = APIRouter(prefix="/users")
 

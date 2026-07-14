@@ -1,8 +1,9 @@
 from fastapi import (APIRouter, WebSocket, WebSocketDisconnect)
-from database import (edit_message, delete_message, AsyncSessionLocal, check_permissions_ws,
-                      send_message)
+from database import AsyncSessionLocal
 from ws_manager import manager
 import json
+from services.message import (edit_message, delete_message, send_message)
+from services.ws import check_permissions_ws
 
 router = APIRouter()
 

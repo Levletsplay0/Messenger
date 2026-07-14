@@ -1,12 +1,15 @@
 from fastapi import (APIRouter, Depends, Header, UploadFile, File, Query, Body, Path, Form)
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from database import (get_db, create_group, add_participants_to_group, send_message, get_group_messages,
-                      get_user_groups, upload_group_avatar, remove_group_avatar, update_description_group,
-                      group_rename, edit_message, delete_message, get_group, get_group_members_from_db,
-                      leave_from_group, kick_users_from_group, delete_group)
+from database import get_db
 from ws_manager import manager
-
+from services.group import (create_group, add_participants_to_group,
+                            upload_group_avatar, remove_group_avatar, update_description_group,
+                            group_rename, get_group, get_group_members_from_db,
+                            leave_from_group, kick_users_from_group, delete_group)
+from services.message import (send_message, get_group_messages, edit_message,
+                              delete_message)
+from services.user import get_user_groups
 
 router = APIRouter(prefix="/groups")
 
