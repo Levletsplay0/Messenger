@@ -328,7 +328,7 @@ async def kick_users(group_id: int = Path(..., ge=1), user_ids: list[int] = Body
         }
     )
 
-@router.delete("/{group_id}/")
+@router.delete("/{group_id}")
 async def delete_group_endpoint(group_id: int = Path(..., ge=1), auth_token: str = Header(..., description="Токен аутентификации"), db: AsyncSession = Depends(get_db)):
     result, status_code, message = await delete_group(auth_token, group_id, db)
     if status_code != 200 and status_code != 201:

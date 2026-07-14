@@ -35,7 +35,7 @@ async def auth_user(username, password, db: AsyncSession):
         return None, 404, "Такого пользователя нет"
     
     
-    is_valid = await check_password_hash(user.password, password)
+    is_valid = check_password_hash(user.password, password)
     if not is_valid:
         return None, 401, "Неверный пароль"
     

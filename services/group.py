@@ -1,4 +1,4 @@
-from sqlalchemy import select, func
+from sqlalchemy import select, func, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from models import User, Base, Group, Message, GroupMember
 from pathlib import Path
@@ -320,7 +320,7 @@ async def kick_users_from_group(group_id: int, user_ids: list[int], token: str, 
             return None, 403, "Админ может исключать только обычных участников"
         
     await db.execute(
-        GroupMember.__table__.delete().where(
+        delete(GroupMember).where(
             GroupMember.group_id == group_id,
             GroupMember.user_id.in_(user_ids)
         )
