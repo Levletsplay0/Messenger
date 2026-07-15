@@ -13,7 +13,7 @@ from services.user import get_user_groups
 
 router = APIRouter(prefix="/groups")
 
-@router.post("/")
+@router.post("")
 async def new_group(auth_token: str = Header(..., description="Токен аутентификации"), name: str = Body(..., embed=True, description="Название группы"), db: AsyncSession = Depends(get_db)):
     new_group, status_code, message = await create_group(auth_token, name, db)
     if status_code != 200 and status_code != 201:
@@ -111,7 +111,7 @@ async def get_messages_group(group_id: int = Path(..., ge=1, description="ID г�
     )
 
 
-@router.get("/")
+@router.get("")
 async def get_groups(auth_token: str = Header(..., description="Токен аутентификации"), db: AsyncSession = Depends(get_db)):
     result, status_code, message = await get_user_groups(token=auth_token, db=db)
     

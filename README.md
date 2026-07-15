@@ -154,7 +154,7 @@ uvicorn main:app --reload --host 0.0.0.0 --port 8000
 | `POST` | `/groups/{group_id}/members` | Добавление участников в группу | `user_ids` (список ID) |
 | `POST` | `/groups/{group_id}/leave` | Выход из группы | - |
 | `POST` | `/groups/{group_id}/kick` | Исключение участников (только создатель/админ) | `user_ids` (список ID) |
-| `DELETE`| `/groups/{group_id}/` | **Удаление группы** (только создатель) | - |
+| `DELETE`| `/groups/{group_id}` | **Удаление группы** (только создатель) | - |
 | `POST` | `/groups/{group_id}/avatar` | Загрузка аватарки группы *(доступно любому участнику)* | Form: `file` (png, jpg, jpeg, webp) |
 | `DELETE` | `/groups/{group_id}/avatar` | Удаление аватарки группы *(доступно любому участнику)* | - |
 | `PATCH` | `/groups/{group_id}/name` | Изменение названия группы *(доступно любому участнику)* | `name` (от 5 до 20 символов) |
