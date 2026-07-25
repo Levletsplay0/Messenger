@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path as FilePath
 from routers import auth, users, groups, ws
-import datetime
+from datetime import datetime
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
