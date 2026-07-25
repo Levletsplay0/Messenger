@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path as FilePath
 from routers import auth, users, groups, ws
+import datetime
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -21,6 +22,14 @@ app.include_router(ws.router)
 
 @app.get("/")
 async def main():
-    return {"success": True, "message": "Прекрасно, бекенд работает!"}
+    return {
+        "success": True,
+        "message": "Прекрасно, бэкенд мессенджера работает!",
+        "data": {
+            "version": "1.0.0",
+            "time": datetime.now().isoformat(),
+            "docs": "/docs"
+        }
+    }
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
