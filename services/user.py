@@ -1,6 +1,6 @@
-from sqlalchemy import select
+from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
-from models import User, Group, GroupMember
+from models import User, Group, GroupMember, Message
 from pathlib import Path
 from fastapi import UploadFile
 import uuid
@@ -74,21 +74,48 @@ async def get_user_groups(token, db: AsyncSession):
         .order_by(GroupMember.joined_at.desc())
     )
     result = await db.execute(stmt)
-    rows = result.all() 
+    rows = result.all()
     if not rows:
         return [], 200, "У вас пока нет групп"
+
+    group_ids = [group.id for group, role in rows]
+    last_messages_map = {}
     
-    data = [
-        {
+    if group_ids:
+        latest_msgs_stmt = (
+            select(Message, User.username, User.avatar_path)
+            .join(User, Message.author_id == User.id)
+            .where(Message.group_id.in_(group_ids))
+            .distinct(Message.group_id)
+            .order_by(Message.group_id, desc(Message.sent_at))
+        )
+        msgs_result = await db.execute(latest_msgs_stmt)
+        
+        for msg, author_username, author_avatar in msgs_result.all():
+            last_messages_map[msg.group_id] = {
+                "id": msg.id,
+                "content": msg.content,
+                "author_id": msg.author_id,
+                "author_username": author_username,
+                "author_avatar_path": author_avatar,
+                "sent_at": msg.sent_at.isoformat() if msg.sent_at else None,
+                "edited_at": msg.edited_at.isoformat() if msg.edited_at else None,
+                "file_name": msg.file_name,
+                "file_path": msg.file_path
+            }
+
+    data = []
+    for group, role in rows:
+        group_data = {
             "id": group.id,
             "name": group.name,
             "avatar_path": group.avatar_path,
             "description": group.description,
             "creator_id": group.creator_id,
-            "my_role": role
+            "my_role": role,
+            "last_message": last_messages_map.get(group.id)
         }
-        for group, role in rows
-    ]
+        data.append(group_data)
 
     return data, 200, f"Загружено {len(data)} чатов"
 
