@@ -1,24 +1,48 @@
 from pydantic import BaseModel, EmailStr, Field, field_validator
 from typing import Optional
 from datetime import date
-import re
 
 class UserRegister(BaseModel):
-    username: str
-    password: str
+    username: str = Field(..., min_length=3, max_length=30)
+    password: str = Field(..., min_length=8, max_length=100)
     email: EmailStr
-    name: str = Field(None, min_length=1, max_length=50)
-    last_name: str = Field(None, min_length=1, max_length=50)
+    name: str = Field(..., min_length=1, max_length=50)
+    last_name: str = Field(..., min_length=1, max_length=50)
+
+    @field_validator('username')
+    @classmethod
+    def validate_username(cls, v: str) -> str:
+        return v.strip()
+
+    @field_validator('name', 'last_name')
+    @classmethod
+    def clean_names(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None:
+            return v.strip().title()
+        return v
+
 
 class UserLogin(BaseModel):
-    username: str
-    password: str
+    username: str = Field(..., min_length=3, max_length=30)
+    password: str = Field(..., min_length=1)
+
+    @field_validator('username')
+    @classmethod
+    def validate_username(cls, v: str) -> str:
+        return v.strip()
 
 class UserUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=50)
     last_name: Optional[str] = Field(None, min_length=1, max_length=50)
     description: Optional[str] = Field(None, max_length=100)
     date_of_birth: Optional[date] = None
+
+    @field_validator('name', 'last_name')
+    @classmethod
+    def clean_names(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None:
+            return v.strip().title()
+        return v
 
     @field_validator('date_of_birth')
     @classmethod

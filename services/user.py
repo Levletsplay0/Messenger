@@ -36,6 +36,7 @@ async def get_yourself(token, db: AsyncSession):
         "email": user.email,
         "name": user.name,
         "last_name": user.last_name,
+        "date_of_birth": user.date_of_birth.isoformat() if user.date_of_birth else None,
         "avatar_path": user.avatar_path,
         "description": user.description,
     }
@@ -57,7 +58,12 @@ async def users_search(token, username, limit, offset, db: AsyncSession):
         return [], 200, "Пользователи не найдены"
     
     users_data = [
-        {"id": u.id, "username": u.username, "email": u.email, "name": u.name, "last_name": u.last_name, "avatar_path": u.avatar_path, "description": u.description}
+        {
+            "id": u.id, "username": u.username, "email": u.email, 
+            "name": u.name, "last_name": u.last_name, 
+            "date_of_birth": u.date_of_birth.isoformat() if u.date_of_birth else None, # <-- ДОБАВЛЕНО
+            "avatar_path": u.avatar_path, "description": u.description
+        }
         for u in users
     ]
     
@@ -218,6 +224,7 @@ async def get_user_profile(token: str, user_id: int, db: AsyncSession):
         "name": user.name,
         "last_name": user.last_name,
         "description": user.description,
+        "date_of_birth": user.date_of_birth.isoformat() if user.date_of_birth else None,
         "avatar_path": user.avatar_path,
     }
 
