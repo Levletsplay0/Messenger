@@ -6,6 +6,7 @@ from fastapi import UploadFile
 import uuid
 from constants import (ALLOWED_EXTENSIONS, MAX_FILE_SIZE, 
                        USER_AVATARS_DIR)
+from schemas import UserUpdate
 
 
 async def get_user_by_name(username, db: AsyncSession):
@@ -170,22 +171,34 @@ async def remove_user_avatar(token: str, db: AsyncSession):
 
     return {"is_deleted": True}, 200, "Аватарка успешно удалена"
 
-async def update_user_description(token: str, description: str, db: AsyncSession):    
+async def update_user_profile(token: str, user_data: 'UserUpdate', db: AsyncSession):
     user, status_code, message = await get_user_by_token(token, db)
     if not user:
         return None, status_code, message
-
-    if not description or not description.strip():
-        return None, 400, "Описание не может быть пустым"
     
-    if len(description) > 100:
-        return None, 400, "Описание слишком длинное (макс. 100 символов)"
-
+    update_dict = user_data.model_dump(exclude_unset=True)
     
-    user.description = description.strip()
+    if not update_dict:
+        return None, 400, "Нет данных для обновления"
+    
+    for field, value in update_dict.items():
+        setattr(user, field, value)
+    
     await db.commit()
-
-    return {"is_updated": True}, 200, "Описание обновлено!"
+    await db.refresh(user)
+    
+    data = {
+        "id": user.id,
+        "username": user.username,
+        "email": user.email,
+        "name": user.name,
+        "last_name": user.last_name,
+        "description": user.description,
+        "date_of_birth": user.date_of_birth.isoformat() if user.date_of_birth else None,
+        "avatar_path": user.avatar_path,
+    }
+    
+    return data, 200, "Профиль успешно обновлен"
 
 async def get_user_profile(token: str, user_id: int, db: AsyncSession):
     requester, status_code, message = await get_user_by_token(token, db)

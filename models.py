@@ -1,5 +1,5 @@
 from sqlalchemy import (Column, String, Integer, ForeignKey,
-                        func, DateTime, UniqueConstraint, Text)
+                        func, DateTime, UniqueConstraint, Text, Date)
 from sqlalchemy.orm import declarative_base, relationship
 
 
@@ -14,7 +14,8 @@ class User(Base):
     email = Column(String, unique=True, nullable=False)
     name = Column(String, nullable=False)
     last_name = Column(String, nullable=False)
-    description = Column(String, unique=False, nullable=True)
+    description = Column(String, nullable=True)
+    date_of_birth = Column(Date, nullable=True)
     token = Column(String, nullable=True, unique=True)
     avatar_path = Column(String, nullable=True)
 

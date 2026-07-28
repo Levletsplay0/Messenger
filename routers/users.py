@@ -3,7 +3,8 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from database import get_db
 from services.user import (get_yourself, users_search, upload_user_avatar,
-                           remove_user_avatar, update_user_description, get_user_profile)
+                           remove_user_avatar, get_user_profile, update_user_profile)
+from schemas import UserUpdate
 
 router = APIRouter(prefix="/users")
 
@@ -82,16 +83,16 @@ async def delete_user_avatar(auth_token: str = Header(..., description="Токе
         }
     )
 
-@router.patch("/me/description")
-async def update_description_user(auth_token: str = Header(..., description="Токен аутентификации"), description: str = Body(..., description="Описание пользователя", embed=True), db: AsyncSession = Depends(get_db)):
-    result, status_code, message = await update_user_description(auth_token, description, db)
+@router.patch("/me")
+async def update_profile(auth_token: str = Header(..., description="Токен аутентификации"), user_data: UserUpdate = Body(..., description="Данные для обновления профиля"), db: AsyncSession = Depends(get_db)):
+    result, status_code, message = await update_user_profile(auth_token, user_data, db)
     
-    if status_code != 200 and status_code != 201:
+    if status_code != 200:
         return JSONResponse(
             status_code=status_code,
             content={"success": False, "message": message}
         )
-
+    
     return JSONResponse(
         status_code=status_code,
         content={
